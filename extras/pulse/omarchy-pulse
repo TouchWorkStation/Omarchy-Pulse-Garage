@@ -99,13 +99,14 @@ HIST = 90   # points kept for sparklines
 AGENT_STATES = ("idle", "working", "waiting", "done", "failed")
 SCENES = ("sphere", "skyline", "orbit", "calm", "garage")   # [pulse] scene; `omarchy-pulse scene NAME` switches
 GARAGE_DEFAULTS = {"cpu": 85, "gpu": 90, "ram": 85, "vram": 90, "disk": 90, "temp": 90, "fuel_goal": 60,
-                   "wait_red": 10, "motion": "full", "layout": "full", "brand": "Omarchy Pulse",
-                   "tagline": "REPOSITORIES · AGENTS · BUILDS · PULSE", "link": "", "plate": ""}
-GARAGE_CHOICES = {"motion": ("full", "reduced", "off"), "layout": ("full", "minimal")}
-GARAGE_TEXT = ("brand", "tagline", "link", "plate")
+                   "wait_red": 10, "motion": "full", "colors": "garage", "dash": True, "plate": ""}
+GARAGE_CHOICES = {"motion": ("full", "reduced", "off"), "colors": ("garage", "theme")}
+GARAGE_TEXT = ("plate",)
 PLATE_TYPES = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp"}
 # [colors] preset = "..." (or "theme", the default: the colours of the Omarchy theme in use)
 PRESETS = {
+    "garage": {"bg": "#08080a", "fg": "#eceef2", "accent": "#ff2a3e", "accent2": "#c4c8d0", "ok": "#3ed66e",
+               "warn": "#ffb42e", "crit": "#ff3442", "dim": "#5c606a"},   # the garage scene's own: crimson and silver
     "synthwave": {"bg": "#070a12", "fg": "#c9d6f2", "accent": "#39e1ff", "accent2": "#ff3fb4", "ok": "#6ff0a8",
                   "warn": "#ffbd4a", "crit": "#ff4d6a", "dim": "#4b5a78"},
     "matrix": {"bg": "#020803", "fg": "#b8f5c4", "accent": "#3dff6e", "accent2": "#00c853", "ok": "#3dff6e",
@@ -2912,6 +2913,9 @@ class Hub:
         """The theme's colours, or a [colors] preset, with any single colour of [colors] on top."""
         c = self.conf("colors", default={}) or {}
         preset = str(c.get("preset", "theme"))
+        if preset == "theme" and (self.scene_override or self.conf("pulse", "scene", default="")) == "garage" and \
+                garage_conf(self.conf("garage", default={}) or {})["colors"] == "garage":
+            preset = "garage"   # the garage brings its colours, unless [garage] colors = "theme" or a [colors] preset
         base = dict(self.theme.get("colors") or {}) if preset == "theme" or preset not in PRESETS else \
             {COLOR_KEYS[k]: v for k, v in PRESETS[preset].items()}
         for k, v in c.items():

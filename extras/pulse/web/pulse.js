@@ -351,6 +351,10 @@
       var el = generic(w);
       if (slot === "left") { left.push(el); nl++; } else if (slot === "center") center.push(el); else { right.push(el); nr++; }
     });
+    var sceneNow = window.PULSE_SCENE || Q.get("scene") || ui.scene;
+    if (sceneNow === "garage" && window.PulseGarage) { try { window.PulseGarage.panels(S, left, right, panel, bodyOf); } catch (e) { console.error(e); } }
+    else { $("#garage") && ($("#garage").hidden = true); }
+    if (sceneNow === "garage" && $("#garage")) $("#garage").hidden = false;
     place($("#left"), left); place($("#right"), right); place($("#center-w"), center);
     fit($("#left")); fit($("#right")); fit($("#center-w"));
     clock();

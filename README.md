@@ -198,25 +198,24 @@ omarchy-pulse scene            # which one is on
 
 ### The garage (beta)
 
-Your PC is a car in a dark workshop. The picture is the scene, and Pulse lights it with your data:
+Everything Pulse shows (the clock, system and network, your sources, the AI brief, the weather, the ticker, the
+alerts), around a car in a workshop instead of the city. The car is your picture (`plate` in `[garage]`), and Pulse
+lights it with your data. The garage adds:
 
-- **The fuel gauge is the work you ship.** A point for every commit of the last 7 days, one more when it is pushed,
-  three for every branch you worked on. Old work leaves the window, so the tank drains if you stop. A push flashes the
-  headlights and floats up as `+ REFUEL`. A full tank is `fuel_goal` in `[garage]`.
-- **Your agents** are listed on the left. One waiting for you turns on the car's **hazard lights** and the amber
-  **Agents** light (red after `wait_red` minutes); a failed one lights the bay red and the **Agents** light red; one
-  that finishes flashes the high beams. Click an agent for its card (status, project, what it does, for how long).
-- **The dashboard lights** are Engine (CPU), Graphics (GPU), Memory (RAM/VRAM), Storage, Network, Repos (CI) and
-  Agents, with the thresholds of `[garage]`. They come on at the threshold and go off 5% below it. High CPU is
+- **fuel**: the work you ship. A point for every commit of the last 7 days, one more when it is pushed, three for
+  every branch you worked on. Old work leaves the window, so the tank drains if you stop. A push flashes the headlights
+  and floats up as `+ REFUEL`. A full tank is `fuel_goal`.
+- **agents**: who works on the car. One waiting for you turns on the **hazard lights** (amber, red after `wait_red`
+  minutes); a failed one lights the engine bay red; one that finishes flashes the high beams. Click one for its card.
+- **builds**: the CI of your repositories.
+- **the dashboard**: engine (CPU), graphics (GPU), memory (RAM and VRAM), storage, network, fuel, repos and agents
+  lights, with the thresholds of `[garage]`. A light comes on at its threshold and goes off 5% below it. High CPU is
   amber, never a failure.
-- **Repos and Build Status** are your repositories of `[git]`: this week's commits, the branch, the CI of GitHub Actions.
-  The strip at the bottom: every commit, this week's branches, releases (tags), active projects.
-- **Pulse's own features, as a garage:** the underglow breathes with your GPU and moves with your music, the real
-  rain or snow runs down the window, an alert flares the neon sign, focus mode is a **RACE** countdown, and
-  "while you were away", the voice, privacy (names hidden while you share the screen) work as in every scene.
+- the underglow breathes with your GPU and moves with your music, the real rain and snow run down the window, an
+  alert flares the neon sign, the colours are crimson and silver (`colors = "theme"` keeps your Omarchy theme).
 
-The picture is yours: `plate = "~/Pictures/garage.jpg"` in `[garage]`, with a `garage.json` beside it that says
-where the headlights, floor and window are. How to make one: [docs/GARAGE.md](docs/GARAGE.md).
+The picture stays on your PC: `plate = "~/Pictures/garage.jpg"`, with a `garage.json` beside it that says where the
+headlights, floor and window are ([docs/GARAGE.md](docs/GARAGE.md)). Without one, the bay is dark and empty.
 
 The wallpaper switches within about 3 seconds (`omarchy-pulse reload` to do it now).
 

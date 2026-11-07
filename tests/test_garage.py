@@ -38,14 +38,14 @@ class FuelTests(unittest.TestCase):
 
 class GarageConfTests(unittest.TestCase):
     def test_defaults_and_overrides(self):
-        c = pulse.garage_conf({'cpu': 70, 'layout': 'minimal', 'motion': 'reduced', 'brand': 'TouchWorkstation'})
-        self.assertEqual((c['cpu'], c['layout'], c['motion'], c['brand']), (70.0, 'minimal', 'reduced', 'TouchWorkstation'))
+        c = pulse.garage_conf({'cpu': 70, 'colors': 'theme', 'motion': 'reduced', 'plate': '~/car.jpg', 'dash': False})
+        self.assertEqual((c['cpu'], c['colors'], c['motion'], c['plate'], c['dash']), (70.0, 'theme', 'reduced', '~/car.jpg', False))
         self.assertEqual(c['ram'], pulse.GARAGE_DEFAULTS['ram'])
 
     def test_nonsense_is_ignored(self):
-        c = pulse.garage_conf({'cpu': 'hot', 'layout': 'huge', 'unknown': 1})
+        c = pulse.garage_conf({'cpu': 'hot', 'colors': 'rainbow', 'unknown': 1})
         self.assertEqual(c['cpu'], pulse.GARAGE_DEFAULTS['cpu'])
-        self.assertEqual(c['layout'], 'full')
+        self.assertEqual(c['colors'], 'garage')
         self.assertNotIn('unknown', c)
 
 
@@ -100,7 +100,21 @@ class StateTests(unittest.TestCase):
         hub.fuel = pulse.fuel_level([{'week': 6}], 60)
         st = hub.state()
         self.assertEqual(st['fuel']['commits'], 6)
-        self.assertEqual(st['ui']['garage']['layout'], 'full')
+        self.assertEqual(st['ui']['garage']['colors'], 'garage')
+
+    def test_the_garage_brings_its_colours_unless_told_otherwise(self):
+        hub = pulse.Hub()
+        hub.scene_override = 'garage'
+        self.assertEqual(hub.colors()['preset'], 'garage')
+        self.assertEqual(hub.colors()['colors']['accent'], '#ff2a3e')
+        with mock.patch.object(hub, 'conf', side_effect=lambda *k, default=None: {'garage': {'colors': 'theme'}}.get(k[0], default) if len(k) == 1 else default):
+            self.assertEqual(hub.colors()['preset'], 'theme')
+        hub.scene_override = 'sphere'
+        self.assertEqual(hub.colors()['preset'], 'theme')
+
+    def test_the_garage_adds_its_panels_to_pulse(self):
+        js = (WEB / 'pulse.js').read_text()
+        self.assertIn('PulseGarage.panels(S, left, right, panel, bodyOf)', js)
 
     def test_agents_remember_when_they_changed_state(self):
         hub = pulse.Hub()

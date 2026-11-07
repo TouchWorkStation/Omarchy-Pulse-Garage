@@ -71,12 +71,10 @@ root = "auto"                    # your repositories are towers (~/code, ~/src, 
 ci = "auto"                      # the beacon on top: GitHub Actions of the branch (needs `gh auth login`)
 max = 8
 
-[garage]                         # scene = "garage": your PC as a car in a workshop (docs/GARAGE.md)
-brand = "Omarchy Pulse"          # the name at the top left (your project, your studio...)
-tagline = "REPOSITORIES · AGENTS · BUILDS · PULSE"
-link = ""                        # bottom left, e.g. "github.com/you" ("" = hidden)
-plate = ""                       # the picture: your own render or photo (jpg/png/webp); plate.json beside it says
-                                 # where its headlights, floor and window are. "" = the one in web/garage/, if any
+[garage]                         # scene = "garage": Pulse over a car in a workshop (docs/GARAGE.md)
+plate = ""                       # the picture of your car (jpg/png/webp, stays on your PC); a .json beside it says
+                                 # where its headlights, floor and window are
+colors = "garage"                # crimson and silver; "theme" keeps your Omarchy theme ([colors] preset wins anyway)
 fuel_goal = 60                   # a full tank, in points a week: 1 a commit, +1 when it is pushed, 3 a branch you worked on
 cpu = 85                         # % for the dashboard lights (they go off again 5% below)
 gpu = 90
@@ -84,7 +82,7 @@ ram = 85
 vram = 90
 disk = 90
 wait_red = 10                    # minutes an agent can wait for you before its light turns red
-layout = "full"                  # "full" | "minimal" (the bar, the lights and the strip: no side panels)
+dash = true                      # the dashboard lights under the car
 motion = "full"                  # "full" | "reduced" (fewer frames, no breathing) | "off" (a still picture)
 
 [space]

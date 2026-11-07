@@ -178,132 +178,106 @@
     g.restore();
   }
 
-  // ------------------------------------------------------------------ the panels around the car
-  function el(cls, html) { var d = document.createElement("div"); d.className = cls; if (html) d.innerHTML = html; return d; }
-  function build() {
-    root = el("", ""); root.id = "garage";
-    root.innerHTML =
-      '<div class="g-brand"><div class="g-logo">&gt;_</div><div><b class="g-name"></b><small class="g-tag"></small></div></div>' +
-      '<div class="g-title"><i>BuildGarage</i><span class="g-pill">Beta</span></div>' +
-      '<div class="g-bar g-glass"></div><div class="g-chip g-glass"></div>' +
-      '<div class="g-side g-left"><section class="g-panel g-glass g-agents"></section><section class="g-panel g-glass g-repos"></section></div>' +
-      '<div class="g-side g-right"><section class="g-panel g-glass g-fuelp"></section><section class="g-panel g-glass g-builds"></section></div>' +
-      '<nav class="g-dash g-glass"></nav>' +
-      '<div class="g-foot"><div class="g-link g-glass"></div><div class="g-nums g-glass"></div><div class="g-link g-host g-glass"></div></div>' +
-      '<div class="g-toast"></div>';
-    document.body.appendChild(root);
-    root.addEventListener("click", onClick);
-    document.addEventListener("click", function (e) { if (card && !root.contains(e.target) && e.target !== card) hideCard(); });
-  }
-  function q(s) { return root.querySelector(s); }
-  function set(s, html) { var e = q(s); if (e && e._h !== html) { e._h = html; e.innerHTML = html; } }
+  // ------------------------------------------------------------------ Pulse's panels, the garage's own among them
+  // The garage keeps Marco's layout: the clock, the system and network panels, every [[source]], the AI brief, the
+  // weather, the ticker. It adds three panels in the same style (agents, fuel, builds) and the dashboard lights.
   function lamp(id, v, th) {   // on at the threshold, off 5 below it: a light never flickers on the line
     if (v == null) { lamps[id] = false; return false; }
     lamps[id] = lamps[id] ? v >= th - 5 : v >= th;
     return lamps[id];
   }
-  function lvl(v, th) { return v == null ? "" : v >= th ? "crit" : v >= th - 15 ? "warn" : ""; }
   function agentsNow() {
     var list = ((S && S.agents) || []).filter(function (a) { return !a.crew && a.state !== "gone"; });
     return list.sort(function (a, b) { return (RANK[a.state] == null ? 5 : RANK[a.state]) - (RANK[b.state] == null ? 5 : RANK[b.state]) || (b.t || 0) - (a.t || 0); });
   }
   function waitCls(a) { return (Date.now() / 1000 - (a.changed || a.t || 0)) / 60 >= (+cfg.wait_red || 10) ? "crit" : "warn"; }
-  function render() {
-    if (!root) build();
-    var sys = S.sys || {}, f = S.fuel || null, repos = S.git || [], ag = agentsNow(), now = Date.now() / 1000;
-    root.classList.toggle("minimal", cfg.layout === "minimal");
-    document.body.classList.toggle("g-still", cfg.motion === "off");
-    set(".g-name", esc(cfg.brand || "Omarchy Pulse")); set(".g-tag", esc(cfg.tagline || ""));
-    if (S.focus) {   // focus mode is a race: the countdown on the dash
-      var left = Math.max(0, S.focus.until - now);
-      set(".g-title", "<i>BuildGarage</i><span class='g-pill race'>RACE " + Math.floor(left / 60) + ":" + ("0" + Math.floor(left % 60)).slice(-2) + "</span>");
-    } else set(".g-title", "<i>BuildGarage</i><span class='g-pill'>Beta</span>");
-    // the bar
-    var th = { cpu: +cfg.cpu || 85, gpu: +cfg.gpu || 90, ram: +cfg.ram || 85, vram: +cfg.vram || 90, disk: +cfg.disk || 90 };
-    var stats = [["cpu", "CPU", sys.cpu], ["gpu", "GPU", sys.gpu], ["ram", "RAM", sys.ram], ["vram", "VRAM", sys.vram], ["disk", "DISK", sys.disk]]
-      .filter(function (s) { return s[2] != null; }).map(function (s) {
-        return '<div class="g-stat">' + ic(s[0]) + '<div class="g-statwrap"><div><span class="k">' + s[1] + '</span><span class="v">' + pct(s[2]) +
-          '</span></div><div class="g-mini"><i class="' + lvl(s[2], th[s[0]]) + '" style="width:' + Math.min(100, s[2]).toFixed(0) + '%"></i></div></div></div>';
-      });
-    stats.push('<div class="g-stat">' + ic("net") + '<div class="g-statwrap"><div><span class="k">NET</span><span class="v">↓ ' + rate(sys.rx) + " &nbsp;↑ " + rate(sys.tx) + "</span></div></div></div>");
-    set(".g-bar", stats.join(""));
-    var nWork = ag.filter(function (a) { return a.state === "working"; }).length, nWait = ag.filter(function (a) { return a.state === "waiting"; }).length;
-    var nFail = ag.filter(function (a) { return a.state === "failed"; }).length;
-    set(".g-chip", '<span class="dot ' + (nFail ? "crit" : nWait ? "warn" : nWork ? "ok" : "") + '"></span><b>Agents</b> ' +
-      (nWait ? nWait + (nWait > 1 ? " need you" : " needs you") : ag.length ? ag.length + " Active" : "none"));
-    // agents
-    var rows = ag.slice(0, 5).map(function (a, i) {
-      var nm = split(a.name), cls = a.state === "waiting" ? waitCls(a) : a.state === "failed" ? "crit" : a.state === "working" && i === 0 && !nWait && !nFail ? "lead" : "";
-      var dcls = a.state === "working" || a.state === "done" ? "ok" : a.state === "waiting" ? waitCls(a) : a.state === "failed" ? "crit" : "";
-      var sub = a.state === "working" ? cap(a.text || "working") : a.state === "waiting" ? "Waiting for input · " + dur(now - (a.changed || a.t)) : STATE[a.state] || a.state;
-      if (nm.project && !share) sub += " (" + nm.project + ")";
-      return '<div class="g-agent ' + cls + '" data-agent="' + esc(a.name) + '"><div class="g-mono">' + esc(nm.who.charAt(0).toUpperCase()) + '</div><div class="t"><b><span class="dot ' + dcls + '"></span>' +
-        esc(cap(nm.who)) + "</b><span>" + esc(sub) + "</span></div></div>";
+  function setH(e, html) { if (e._h !== html) { e._h = html; e.innerHTML = html; } }
+  function panels(st, left, right, panel, bodyOf) {
+    S = st; cfg = (st.ui && st.ui.garage) || {};
+    var now = Date.now() / 1000, ag = agentsNow(), f = st.fuel || null, repos = st.git || [];
+    // agents: who works on the car
+    var nWait = ag.filter(function (a) { return a.state === "waiting"; }).length, nFail = ag.filter(function (a) { return a.state === "failed"; }).length;
+    var pa = panel("g-agents", "agents · " + (ag.length ? ag.length + " in the bay" : "none"), "");
+    pa.classList.toggle("warn", nWait > 0 && !nFail); pa.classList.toggle("crit", nFail > 0);
+    var rows = ag.slice(0, 5).map(function (a) {
+      var nm = split(a.name), c = a.state === "waiting" ? waitCls(a) : a.state === "failed" ? "crit" : a.state === "working" || a.state === "done" ? "ok" : "";
+      var sub = a.state === "working" ? (a.text || "working") + " · " + dur(now - (a.since || now)) : a.state === "waiting" ? "needs you · " + dur(now - (a.changed || a.t)) : STATE[a.state] || a.state;
+      return '<div class="g-arow ' + c + '" data-agent="' + esc(a.name) + '"><span class="dot ' + c + '"></span><b>' + esc(nm.who) + "</b>" +
+        (nm.project && !share ? "<em>" + esc(nm.project) + "</em>" : "") + "<span>" + esc(sub) + "</span></div>";
     });
-    if (ag.length > 5) rows.push('<div class="g-empty">+ ' + (ag.length - 5) + " more</div>");
-    if (!ag.length) rows.push('<div class="g-empty">No agents in the bay. They show up here as they work<br>(omarchy-pulse hook claude / codex, or omarchy-pulse agent).</div>');
-    set(".g-agents", "<h3>" + ic("bot") + "Agents</h3>" + rows.join(""));
-    // repositories
-    var rr = repos.slice(0, 5).map(function (r, i) {
-      var c = r.ci === "ok" ? "ok" : r.ci === "fail" ? "crit" : r.ci === "run" ? "run" : "";
-      return '<div class="g-repo">' + ic("branch") + '<span class="n">' + esc(share ? "repo " + (i + 1) : r.name) + '</span><span class="dot ' + c + '"></span><span class="w">' +
-        (r.week || 0) + ' / wk</span><span class="br">' + esc(share ? "" : r.branch || "") + "</span></div>";
-    });
-    if (!repos.length) rr.push('<div class="g-empty">No repositories found. Point [git] root at your code.</div>');
-    set(".g-repos", "<h3>" + ic("code") + "Repos <small>" + esc(cfg.brand && cfg.brand !== "Omarchy Pulse" ? "(" + cfg.brand + ")" : "") + "</small></h3>" + rr.join(""));
+    if (ag.length > 5) rows.push('<div class="g-arow"><span>+ ' + (ag.length - 5) + " more</span></div>");
+    if (!ag.length) rows.push('<div class="g-arow"><span>the bay is quiet · omarchy-pulse hook claude</span></div>');
+    setH(bodyOf(pa), rows.join(""));
+    left.unshift(pa);
     // fuel: the work you ship
-    var fl = f ? f.level : 0, msg = !f ? "READING YOUR REPOS" : fl >= 0.75 ? "FULL TANK · KEEP SHIPPING" : fl >= 0.35 ? "CRUISING" : fl >= 0.15 ? "RUNNING LOW · PUSH SOMETHING" : "ON FUMES · COMMIT TO REFUEL";
-    var mc = !f ? "" : fl < 0.15 ? "rgb(var(--g-red))" : fl < 0.35 ? "rgb(var(--g-amber))" : "rgb(var(--g-green))";
-    if (!q(".g-fuelp canvas")) q(".g-fuelp").innerHTML = "<h3>" + ic("fuel") + 'Fuel <small>last 7 days</small></h3><div class="g-fuel"><canvas width="220" height="132"></canvas><div class="g-fi"></div></div><div class="g-fs"></div>';
-    set(".g-fi", '<div class="pct">' + (f ? Math.round(fl * 100) + "%" : "--") + '</div><div class="msg" style="color:' + mc + '">' + msg + "</div>");
-    set(".g-fs", f ? "<span><b>" + f.commits + "</b> commits</span><span><b>" + f.pushed + "</b> pushed</span><span><b>" + f.branches + "</b> branches</span><span><b>" + f.today + "</b> today</span>" : "");
-    fuelGauge(q(".g-fuelp canvas"), fl, !!f);
+    var fl = f ? f.level : 0, msg = !f ? "reading your repos" : fl >= 0.75 ? "full tank · keep shipping" : fl >= 0.35 ? "cruising" : fl >= 0.15 ? "running low · push something" : "on fumes · commit to refuel";
+    var pf = panel("g-fuel", "fuel · last 7 days", "");
+    pf.classList.toggle("warn", !!f && fl < 0.35 && fl >= 0.15); pf.classList.toggle("crit", !!f && fl < 0.15);
+    var bf = bodyOf(pf);
+    if (!bf._built) { bf.innerHTML = '<div class="g-fuel"><canvas width="220" height="124"></canvas><div class="g-fi"></div></div><div class="meters g-fm"></div>'; bf._built = true; }
+    setH(bf.querySelector(".g-fi"), '<div class="big"><span>' + (f ? Math.round(fl * 100) : "--") + "</span><small>%</small></div><div class='msg'>" + esc(msg) + "</div>" +
+      (f ? "<div class='pts'>" + f.points + " / " + f.goal + " pts</div>" : ""));
+    fuelGauge(bf.querySelector("canvas"), fl, !!f);
+    setH(bf.querySelector(".g-fm"), f ? [["commits", f.commits], ["pushed", f.pushed], ["branches", f.branches], ["today", f.today]].map(function (r) {
+      return '<div class="meter"><span class="k">' + r[0] + '</span><div class="seg"><i style="width:' + Math.min(100, r[1] / Math.max(1, f.goal) * 100).toFixed(0) + '%"></i></div><span class="v">' + r[1] + "</span></div>";
+    }).join("") + '<div class="g-tot">' + thousands(f.allCommits) + " commits · " + f.releases + " releases · " + f.repos + " active projects</div>" : "");
     // builds: the CI of your repositories
-    var withCi = repos.filter(function (r) { return r.ci; }), run = withCi.filter(function (r) { return r.ci === "run"; }), fail = withCi.filter(function (r) { return r.ci === "fail"; });
-    var head = run.length ? ["run", "spin", "Build Running", run[0].name] : fail.length ? ["crit", "x", "Build Failed", fail[0].name] :
-      withCi.length ? ["ok", "check", "Builds Passing", withCi.length + " repos green"] : ["none", "cube", "No CI found", "GitHub Actions, with gh auth login"];
-    var ci = withCi.slice(0, 5).map(function (r, i) {
-      var c = r.ci === "ok" ? ["ok", "check", "passed"] : r.ci === "fail" ? ["crit", "x", "failed"] : ["run", "spin", "running"];
-      return '<div class="g-ci"><span>' + esc(share ? "repo " + (i + 1) : r.name) + '</span><em class="' + c[0] + '">' + c[2] + '</em><i class="' + c[0] + '">' + ic(c[1]) + "</i></div>";
-    });
-    set(".g-builds", "<h3>" + ic("cube") + 'Build Status</h3><div class="g-build-head ' + head[0] + '">' + ic(head[1]) + "<div><b>" + head[2] + "</b><span>" +
-      esc(share && head[0] !== "ok" && head[0] !== "none" ? "a repository" : head[3]) + "</span></div></div>" + ci.join(""));
-    // the dashboard lights
-    var anyCiFail = fail.length > 0, offline = "ip" in sys && !sys.ip;
+    var withCi = repos.filter(function (r) { return r.ci; });
+    if (withCi.length) {
+      var run = withCi.filter(function (r) { return r.ci === "run"; }), fail = withCi.filter(function (r) { return r.ci === "fail"; });
+      var pb = panel("g-builds", "builds · " + (run.length ? "running" : fail.length ? "failed" : "all green"), "");
+      pb.classList.toggle("warn", run.length > 0 && !fail.length); pb.classList.toggle("crit", fail.length > 0);
+      setH(bodyOf(pb), withCi.slice(0, 5).map(function (r, i) {
+        var c = r.ci === "ok" ? ["ok", "passed"] : r.ci === "fail" ? ["crit", "failed"] : ["run", "running"];
+        return '<div class="g-ci"><span class="dot ' + c[0] + '"></span><span class="n">' + esc(share ? "repo " + (i + 1) : r.name) + "</span><em>" + (r.week || 0) + " this wk</em><b class='" + c[0] + "'>" + c[1] + "</b></div>";
+      }).join(""));
+      right.unshift(pb);
+    }
+    right.unshift(pf);
+    dash();
+  }
+  function dash() {   // the dashboard lights, on the floor in front of the car
+    if (!root) {
+      root = document.createElement("div"); root.id = "garage";
+      root.innerHTML = '<div class="g-dash panel"><div class="legend">dashboard</div><div class="body"></div></div><div class="g-toast"></div>';
+      document.body.appendChild(root);
+      document.addEventListener("click", function (e) {
+        if (!document.body.classList.contains("garage")) return;
+        if (e.target.closest && e.target.closest("[data-agent],[data-lamp]")) onClick(e); else if (card && e.target !== card) hideCard();
+      });
+    }
+    var sys = S.sys || {}, ag = agentsNow(), repos = S.git || [], th = { cpu: +cfg.cpu || 85, gpu: +cfg.gpu || 90, ram: +cfg.ram || 85, vram: +cfg.vram || 90, disk: +cfg.disk || 90 };
+    var nWork = ag.filter(function (a) { return a.state === "working"; }).length, nWait = ag.filter(function (a) { return a.state === "waiting"; }).length;
+    var nFail = ag.filter(function (a) { return a.state === "failed"; }).length, ciFail = repos.some(function (r) { return r.ci === "fail"; }), ciRun = repos.some(function (r) { return r.ci === "run"; });
+    var offline = "ip" in sys && !sys.ip, lowFuel = !!(S.fuel && S.fuel.level < 0.15);
     var L = [
-      ["engine", "Engine", "CPU " + pct(sys.cpu), lamp("cpu", sys.cpu, th.cpu) ? "warn" : "ok"],   // high CPU is work, never a failure
-      ["gpu", "Graphics", sys.gpu == null ? "no reading" : "GPU " + pct(sys.gpu), sys.gpu == null ? "" : lamp("gpu", sys.gpu, th.gpu) ? "warn" : "ok"],
-      ["ram", "Memory", sys.vram != null ? "RAM/VRAM" : "RAM " + pct(sys.ram), (lamp("ram", sys.ram, th.ram) || lamp("vram", sys.vram, th.vram)) ? "warn" : "ok"],
-      ["disk", "Storage", "DISK " + pct(sys.disk), lamp("disk", sys.disk, th.disk) ? "crit" : "ok"],
-      ["wifi", "Network", offline ? "offline" : "NET", offline ? "warn" : "ok"],
-      ["code", "Repos", anyCiFail ? "CI failed" : run.length ? "building" : "GIT", anyCiFail ? "crit" : run.length ? "warn blink" : repos.length ? "ok" : ""],
-      ["bot", "Agents", nFail ? nFail + " failed" : nWait ? nWait + " waiting" : ag.length + " active", nFail ? "crit" : nWait ? "warn blink" : nWork ? "ok" : ""]
+      ["engine", "engine", "cpu " + pct(sys.cpu), lamp("cpu", sys.cpu, th.cpu) ? "warn" : "ok"],   // high CPU is work, never a failure
+      ["gpu", "graphics", sys.gpu == null ? "no reading" : "gpu " + pct(sys.gpu), sys.gpu == null ? "" : lamp("gpu", sys.gpu, th.gpu) ? "warn" : "ok"],
+      ["ram", "memory", sys.vram != null ? "ram " + pct(sys.ram) + " · vram " + pct(sys.vram) : "ram " + pct(sys.ram), (lamp("ram", sys.ram, th.ram) || lamp("vram", sys.vram, th.vram)) ? "warn" : "ok"],
+      ["disk", "storage", "disk " + pct(sys.disk), lamp("disk", sys.disk, th.disk) ? "crit" : "ok"],
+      ["wifi", "network", offline ? "offline" : "online", offline ? "warn" : "ok"],
+      ["fuel", "fuel", S.fuel ? Math.round(S.fuel.level * 100) + "%" : "--", lowFuel ? "warn" : S.fuel ? "ok" : ""],
+      ["code", "repos", ciFail ? "ci failed" : ciRun ? "building" : "git", ciFail ? "crit" : ciRun ? "warn blink" : repos.length ? "ok" : ""],
+      ["bot", "agents", nFail ? nFail + " failed" : nWait ? nWait + " waiting" : nWork + " working", nFail ? "crit" : nWait ? "warn blink" : nWork ? "ok" : ""]
     ];
-    set(".g-dash", L.map(function (l, i) { return '<div class="g-lamp ' + l[3] + '" data-lamp="' + i + '">' + ic(l[0]) + "<b>" + l[1] + "</b><small>" + esc(l[2]) + "</small></div>"; }).join(""));
     root._lamps = L;
-    // the strip at the bottom
-    var link = q(".g-link:not(.g-host)");
-    link.style.display = cfg.link ? "" : "none";
-    set(".g-link:not(.g-host)", ic("link") + esc(cfg.link || ""));
-    set(".g-nums", f ? [["commit", thousands(f.allCommits), "Commits"], ["branch", f.branches, "Active Branches"], ["tag", f.releases, "Releases"], ["cube", f.repos, "Active Projects"]]
-      .map(function (n) { return '<div class="g-num">' + ic(n[0]) + "<div><b>" + n[1] + "</b><span>" + n[2] + "</span></div></div>"; }).join("") : '<div class="g-num"><span>reading your repositories…</span></div>');
-    set(".g-host", '<span style="color:rgb(var(--g-red));font-weight:700">&gt;&gt;</span>' + esc(share ? "garage" : sys.host || ""));
-    if (cardFor) fillCard(cardFor);
+    root.classList.toggle("off", cfg.dash === false);
+    setH(root.querySelector(".g-dash .body"), L.map(function (l, i) { return '<div class="g-lamp ' + l[3] + '" data-lamp="' + i + '">' + ic(l[0]) + "<b>" + l[1] + "</b><small>" + esc(l[2]) + "</small></div>"; }).join(""));
   }
   function fuelGauge(cv, v, known) {
-    var c = cv.getContext("2d"), w = cv.width, h = cv.height, cx = w / 2, cy = h * 0.9, R = h * 0.72, n = 18;
+    var c = cv.getContext("2d"), w = cv.width, h = cv.height, cx = w / 2, cy = h * 0.92, R = h * 0.76, n = 18;
+    var css = getComputedStyle(document.body), acc = (css.getPropertyValue("--accent-rgb") || "255,42,62").trim();
     c.clearRect(0, 0, w, h);
     for (var i = 0; i < n; i++) {
       var a0 = Math.PI + Math.PI * i / n + 0.03, a1 = Math.PI + Math.PI * (i + 1) / n - 0.03, on = known && (i + 0.5) / n <= v;
-      c.strokeStyle = on ? (v < 0.15 ? "rgb(255,52,66)" : i < n * 0.2 ? "rgb(255,176,46)" : "rgb(235,238,244)") : "rgba(255,255,255,.1)";
-      c.lineWidth = R * 0.2; c.beginPath(); c.arc(cx, cy, R, a0, a1); c.stroke();
+      c.strokeStyle = on ? (v < 0.15 ? "rgb(255,52,66)" : i < n * 0.2 ? "rgb(255,176,46)" : "rgb(" + acc + ")") : "rgba(255,255,255,.1)";
+      c.lineWidth = R * 0.18; c.beginPath(); c.arc(cx, cy, R, a0, a1); c.stroke();
     }
     var a = Math.PI + Math.PI * Math.max(0, Math.min(1, v));
-    c.strokeStyle = "rgb(255,42,62)"; c.lineWidth = 4; c.lineCap = "round";
-    c.beginPath(); c.moveTo(cx, cy); c.lineTo(cx + Math.cos(a) * R * 0.86, cy + Math.sin(a) * R * 0.86); c.stroke();
-    c.fillStyle = "#1b1c20"; c.beginPath(); c.arc(cx, cy, 8, 0, 7); c.fill();
-    c.fillStyle = "rgba(255,255,255,.55)"; c.font = "600 18px sans-serif"; c.textAlign = "center";
-    c.fillText("E", cx - R - 4, cy + 4 - 18); c.fillText("F", cx + R + 4, cy + 4 - 18);
+    c.strokeStyle = "rgba(240,242,248,.95)"; c.lineWidth = 3; c.lineCap = "round";
+    c.beginPath(); c.moveTo(cx, cy); c.lineTo(cx + Math.cos(a) * R * 0.84, cy + Math.sin(a) * R * 0.84); c.stroke();
+    c.fillStyle = "rgba(255,255,255,.5)"; c.font = "600 17px monospace"; c.textAlign = "center";
+    c.fillText("E", cx - R, cy - R * 0.02 - 22); c.fillText("F", cx + R, cy - R * 0.02 - 22);
   }
 
   // ------------------------------------------------------------------ clicks: a small card, nothing invented
@@ -339,6 +313,7 @@
   }
 
   // ------------------------------------------------------------------ data in
+  function q(sel) { return root ? root.querySelector(sel) : null; }
   function toast(text, col) {
     var e = q(".g-toast"); if (!e) return;
     e.textContent = text; e.style.color = col || ""; e.classList.add("on");
@@ -346,12 +321,13 @@
   }
   function update(st) {
     S = st; cfg = (st && st.ui && st.ui.garage) || {};
+    document.body.classList.toggle("g-still", cfg.motion === "off");
     loadPlate();
     agentsNow().forEach(function (a) {   // an agent just finished: high beams
       if (seen[a.name] && seen[a.name] !== "done" && a.state === "done") { beam = 1; toast(cap(split(a.name).who) + " · DONE", "rgb(62,214,110)"); }
       seen[a.name] = a.state;
     });
-    try { render(); } catch (e) { if (window.PULSE_DEBUG) console.error("garage: " + e + " " + e.stack); }
+    try { if (root) dash(); if (cardFor) fillCard(cardFor); } catch (e) { if (window.PULSE_DEBUG) console.error("garage: " + e + " " + e.stack); }
   }
   function fx(f) {
     if (f.kind === "push") { beam = 1; toast("+ REFUEL · " + (share ? "pushed" : f.text)); }
@@ -366,5 +342,5 @@
   }
   function alert(level) { alertAt = performance.now(); alertCol = level === "crit" ? RED : AMBER; }
 
-  window.PulseGarage = { draw: draw, update: update, fx: fx, audio: audio, alert: alert, reset: function () { cache = null; } };
+  window.PulseGarage = { draw: draw, update: update, panels: panels, fx: fx, audio: audio, alert: alert, reset: function () { cache = null; } };
 })();

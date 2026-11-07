@@ -1,22 +1,23 @@
 # The garage scene: making the picture
 
-The garage draws its panels and lights over a picture of a car in a workshop: the **plate**. Use your own render,
-a photo, or an image you generate. It should be **unbranded**: no badges, no grille logos, no text, no UI.
+The garage draws Pulse's panels and its lights over a picture of a car in a workshop: the **plate**. Use your own
+render, a photo, or an image you generate, of any car you like. The picture stays on your PC (it is read from the path
+in your config); keep pictures of real makes out of the repository, since their badges are trademarks.
 
 ## 1. The picture
 
 - 16:9 or wider, at least 2560 px wide (3840 for a 4K screen). JPG, PNG or WebP.
 - The car in the middle, front three-quarter view, with dark space at the top and on both sides: the panels sit there.
-- Dark charcoal workshop, restrained red neon, a wet reflective floor. No people, no text, no logos.
+- Dark charcoal workshop, restrained red neon, a wet reflective floor. No people, no text, no UI.
 
 A prompt that works with most image generators:
 
-> Cinematic photo of an unbranded black sports coupe, front three-quarter view, parked in the center of a dark
+> Cinematic photo of a black sports coupe, front three-quarter view, parked in the center of a dark
 > automotive workshop at night. Glossy black paint with deep red neon reflections, slim LED headlights on, red neon
 > light strips outlining a bay on a wet reflective concrete floor. Left: a pegboard tool wall and a red tool chest.
 > Right: a tall paneled window with a red sun over a snowy mountain. Back wall: an empty neon frame. Charcoal and
 > near-black tones, crimson accents. Wide 21:9 composition with empty dark space on the left, right and top.
-> No logos, no badges, no emblems, no text, no people, no UI.
+> No text, no people, no UI.
 
 ## 2. Where the lights are: plate.json
 
