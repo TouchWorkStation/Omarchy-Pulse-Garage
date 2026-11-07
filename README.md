@@ -198,24 +198,25 @@ omarchy-pulse scene            # which one is on
 
 ### The garage (beta)
 
-![The garage scene](docs/garage-preview.png)
-
-Your PC is an unbranded black coupe in a dark workshop, and the scene is the interface:
+Your PC is a car in a dark workshop. The picture is the scene, and Pulse lights it with your data:
 
 - **The fuel gauge is the work you ship.** A point for every commit of the last 7 days, one more when it is pushed,
-  three for every branch you worked on, from the repositories of `[git]`. Old work leaves the window, so the tank
-  drains if you stop. A push floats up from the gauge as `+ REFUEL`. Set a full tank with `fuel_goal` in `[garage]`.
-- **Your agents are mechanics.** Working: a work light on the car and a wrench in hand. Waiting for you: they stop,
-  an amber `!` over their head and the car's **hazard lights** blink (red after `wait_red` minutes). Failed: a red
-  `✕` and the **CHECK** light. Done: a green ring, then they rest. Up to four around the car, then `+N`.
-  Click one for its card: agent, project, what it is doing, for how long. Nothing that Pulse does not know.
-- **The cluster is your PC:** ENGINE is the CPU, BOOST the GPU (the temperature without one), RAM, disk, network,
-  and warning lights (ENG, GPU, MEM, DISK, TEMP, NET, FUEL) at the thresholds of `[garage]`. They come on at the
-  threshold and go off 5% below it, so they never flicker. High CPU is amber, never a failure.
-- **The tool wall is your projects:** each repository with its CI light and this week's commits.
+  three for every branch you worked on. Old work leaves the window, so the tank drains if you stop. A push flashes the
+  headlights and floats up as `+ REFUEL`. A full tank is `fuel_goal` in `[garage]`.
+- **Your agents** are listed on the left. One waiting for you turns on the car's **hazard lights** and the amber
+  **Agents** light (red after `wait_red` minutes); a failed one lights the bay red and the **Agents** light red; one
+  that finishes flashes the high beams. Click an agent for its card (status, project, what it does, for how long).
+- **The dashboard lights** are Engine (CPU), Graphics (GPU), Memory (RAM/VRAM), Storage, Network, Repos (CI) and
+  Agents, with the thresholds of `[garage]`. They come on at the threshold and go off 5% below it. High CPU is
+  amber, never a failure.
+- **Repos and Build Status** are your repositories of `[git]`: this week's commits, the branch, the CI of GitHub Actions.
+  The strip at the bottom: every commit, this week's branches, releases (tags), active projects.
+- **Pulse's own features, as a garage:** the underglow breathes with your GPU and moves with your music, the real
+  rain or snow runs down the window, an alert flares the neon sign, focus mode is a **RACE** countdown, and
+  "while you were away", the voice, privacy (names hidden while you share the screen) work as in every scene.
 
-`[garage]` also has `cluster = "compact"` or `"off"`, `motion = "reduced"` or `"off"`, `mechanics`, `projects`
-and `panels = true` (your panels on the sides). Sharing the screen hides the project names.
+The picture is yours: `plate = "~/Pictures/garage.jpg"` in `[garage]`, with a `garage.json` beside it that says
+where the headlights, floor and window are. How to make one: [docs/GARAGE.md](docs/GARAGE.md).
 
 The wallpaper switches within about 3 seconds (`omarchy-pulse reload` to do it now).
 

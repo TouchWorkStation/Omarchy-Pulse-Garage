@@ -2387,7 +2387,7 @@
     return {
       start: function () { if (!COL.bg) applyTheme(null); resize(); addEventListener("resize", resize); frameId = requestAnimationFrame(frame); },
       reset: reset,
-      audio: function (a) { audio = a || []; audioT = performance.now(); },
+      audio: function (a) { audio = a || []; audioT = performance.now(); if (kind === "garage" && window.PulseGarage) window.PulseGarage.audio(audio); },
       cursor: function (x, y) {
         if (cursorXY && Math.abs(cursorXY[0] - x) < 1 && Math.abs(cursorXY[1] - y) < 1) return;
         cursorXY = [x, y]; cursorAt = performance.now();
@@ -2486,13 +2486,12 @@
           if (gcfg.motion === "off") fps = Math.min(fps, 1);
         }
         document.body.classList.toggle("garage", kind === "garage");
-        document.body.classList.toggle("garage-panels", kind === "garage" && gcfg.panels === true);
         if (away) fps = Math.min(fps, 8);   // nobody is looking: save power
         paused = full;
         document.body.classList.toggle("busy", busy);
         document.body.classList.toggle("calm", kind === "calm");
       },
-      alert: function (level) { alertEnv = 1; alertCol = level === "crit" ? COL.crit : COL.warn; spikes.push({ born: performance.now(), amp: 1.6, col: alertCol }); }
+      alert: function (level) { if (kind === "garage" && window.PulseGarage) window.PulseGarage.alert(level); alertEnv = 1; alertCol = level === "crit" ? COL.crit : COL.warn; spikes.push({ born: performance.now(), amp: 1.6, col: alertCol }); }
     };
   })();
 

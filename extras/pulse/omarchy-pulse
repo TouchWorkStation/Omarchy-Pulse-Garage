@@ -98,9 +98,12 @@ BUILTIN_IDS = {"sys", "net", "weather", "media", "notifications", "github"}
 HIST = 90   # points kept for sparklines
 AGENT_STATES = ("idle", "working", "waiting", "done", "failed")
 SCENES = ("sphere", "skyline", "orbit", "calm", "garage")   # [pulse] scene; `omarchy-pulse scene NAME` switches
-GARAGE_DEFAULTS = {"cpu": 85, "gpu": 90, "ram": 85, "disk": 90, "temp": 90, "fuel_goal": 60, "mechanics": True,
-                   "cluster": "full", "projects": True, "wait_red": 10, "panels": False, "motion": "full"}
-GARAGE_CHOICES = {"cluster": ("full", "compact", "off"), "motion": ("full", "reduced", "off")}
+GARAGE_DEFAULTS = {"cpu": 85, "gpu": 90, "ram": 85, "vram": 90, "disk": 90, "temp": 90, "fuel_goal": 60,
+                   "wait_red": 10, "motion": "full", "layout": "full", "brand": "Omarchy Pulse",
+                   "tagline": "REPOSITORIES · AGENTS · BUILDS · PULSE", "link": "", "plate": ""}
+GARAGE_CHOICES = {"motion": ("full", "reduced", "off"), "layout": ("full", "minimal")}
+GARAGE_TEXT = ("brand", "tagline", "link", "plate")
+PLATE_TYPES = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp"}
 # [colors] preset = "..." (or "theme", the default: the colours of the Omarchy theme in use)
 PRESETS = {
     "synthwave": {"bg": "#070a12", "fg": "#c9d6f2", "accent": "#39e1ff", "accent2": "#ff3fb4", "ok": "#6ff0a8",
@@ -1855,6 +1858,7 @@ class Hub:
                     prev[key] = info
                     out.append({"name": name, "week": info["week"], "last": info["last"], "dirty": info["dirty"],
                                 "ci": ci, "branch": info["branch"][:24], "today": info.get("today", 0),
+                                "total": info.get("total", 0), "tags": info.get("tags", 0),
                                 "pushed": info.get("pushed", 0), "branches": info.get("branches", 0)})
                 out.sort(key=lambda r: (-r["week"], -r["last"]))
                 goal = (self.conf("garage", default={}) or {}).get("fuel_goal", GARAGE_DEFAULTS["fuel_goal"])
@@ -2493,7 +2497,7 @@ class Hub:
         prev_net = None
         prev_t = time.time()
         gpu_t = 0.0
-        gpu = None
+        gpu = vram = None
         while True:
             try:
                 now = time.time()
@@ -2537,6 +2541,7 @@ class Hub:
                 if now - gpu_t > 4:
                     gpu_t = now
                     gpu = read_gpu()
+                    vram = read_vram()
                 temp = read_temp()
                 du = shutil.disk_usage("/")
                 with open("/proc/loadavg") as f:
@@ -2545,7 +2550,7 @@ class Hub:
                     up = float(f.read().split()[0])
                 bat = read_battery()
                 s = {"cpu": round(cpu, 1), "cores": cores, "ram": round(100 * used / tot, 1),
-                     "ramUsed": used * 1024, "ramTotal": tot * 1024, "swap": round(swap, 1), "gpu": gpu, "temp": temp,
+                     "ramUsed": used * 1024, "ramTotal": tot * 1024, "swap": round(swap, 1), "gpu": gpu, "vram": vram, "temp": temp,
                      "disk": round(100 * du.used / du.total, 1), "diskFree": du.free, "load": load, "uptime": up,
                      "rx": rxr, "tx": txr, "bat": bat, "ip": local_ip(), "host": socket.gethostname(),
                      "user": os.environ.get("USER", "")}
@@ -2930,6 +2935,25 @@ class Hub:
 
 
 # ---------------------------------------------------------------- small readers
+
+def read_vram():
+    """Video memory in use, %: AMD (sysfs) or NVIDIA (nvidia-smi); None when the GPU does not say."""
+    for p in Path("/sys/class/drm").glob("card*/device/mem_info_vram_used"):
+        try:
+            total = float((p.parent / "mem_info_vram_total").read_text().strip())
+            return round(100 * float(p.read_text().strip()) / total, 1) if total else None
+        except Exception:   # noqa: BLE001
+            pass
+    if shutil.which("nvidia-smi"):
+        try:
+            r = subprocess.run(["nvidia-smi", "--query-gpu=memory.used,memory.total", "--format=csv,noheader,nounits"],
+                               capture_output=True, text=True, timeout=3)
+            used, total = (float(x) for x in r.stdout.splitlines()[0].split(","))
+            return round(100 * used / total, 1) if total else None
+        except Exception:   # noqa: BLE001
+            pass
+    return None
+
 
 def read_gpu():
     for p in Path("/sys/class/drm").glob("card*/device/gpu_busy_percent"):
@@ -3394,7 +3418,8 @@ def fuel_level(repos: list, goal=60) -> dict:
     points = commits + pushed + 3 * branches
     return {"level": round(min(1.0, points / goal), 3), "points": points, "goal": int(goal), "commits": commits,
             "pushed": pushed, "branches": branches, "today": sum(int(r.get("today") or 0) for r in repos),
-            "repos": sum(1 for r in repos if r.get("week"))}
+            "repos": sum(1 for r in repos if r.get("week")), "allCommits": sum(int(r.get("total") or 0) for r in repos),
+            "releases": sum(int(r.get("tags") or 0) for r in repos)}
 
 
 def garage_conf(c: dict) -> dict:
@@ -3410,9 +3435,33 @@ def garage_conf(c: dict) -> dict:
                 out[k] = max(1.0, min(100000.0, float(v)))
             except (TypeError, ValueError):
                 pass
+        elif k in GARAGE_TEXT:
+            out[k] = str(v)[:80]
         else:
             out[k] = str(v) if str(v) in GARAGE_CHOICES.get(k, ()) else out[k]
     return out
+
+
+def garage_plate(conf: dict) -> Path | None:
+    """The picture behind the garage: [garage] plate (your own render or photo), else the one that ships with Pulse.
+    Only images: the path comes from your config, but a page must never read any other file through it."""
+    for f in (str((conf or {}).get("plate") or ""), str(WEB / "garage" / "plate.jpg")):
+        if not f:
+            continue
+        p = Path(os.path.expanduser(f))
+        if p.suffix.lower() in PLATE_TYPES and p.is_file():
+            return p
+    return None
+
+
+def plate_anchors(plate: Path | None) -> dict:
+    """Where the lights are on the plate (fractions of its width and height), from plate.json beside it."""
+    if plate:
+        try:
+            return json.loads(plate.with_suffix(".json").read_text())
+        except Exception:   # noqa: BLE001
+            pass
+    return {}
 
 
 def with_scene(text: str, name: str) -> str:
@@ -3443,7 +3492,9 @@ def git_info(path) -> dict | None:
     branches = sum(1 for x in g("for-each-ref", "--format=%(committerdate:unix)", "refs/heads").split()
                    if x.isdigit() and int(x) > cut)   # branches with work on them this week
     last = g("log", "-1", "--format=%ct")
-    return {"head": head, "up": g("rev-parse", "@{u}"), "branch": g("rev-parse", "--abbrev-ref", "HEAD"),
+    total = g("rev-list", "--count", "HEAD")
+    tags = len(g("tag", "--list").split())
+    return {"total": int(total) if total.isdigit() else 0, "tags": tags,"head": head, "up": g("rev-parse", "@{u}"), "branch": g("rev-parse", "--abbrev-ref", "HEAD"),
             "week": int(week) if week.isdigit() else 0, "last": int(last) if last.isdigit() else 0,
             "today": int(today) if today.isdigit() else 0, "pushed": int(pushed) if pushed.isdigit() else 0,
             "branches": branches,
@@ -4489,6 +4540,16 @@ def make_handler(hub: Hub, tok: str, port: int):
                 finally:
                     with hub.lock:
                         hub.live_clients -= 1
+            if path in ("/api/garage/plate", "/api/garage/anchors"):
+                if self._authed(q):
+                    p = garage_plate(hub.conf("garage", default={}) or {})
+                    if path.endswith("anchors"):
+                        self._send(200, json.dumps(plate_anchors(p)).encode())
+                    elif p:
+                        self._send(200, p.read_bytes(), PLATE_TYPES[p.suffix.lower()])
+                    else:
+                        self._send(404, b"{}")
+                return
             if path == "/api/perf":
                 if self._authed(q):
                     with hub.lock:
@@ -4774,7 +4835,7 @@ def from_demo(hub: Hub) -> None:
             tx = 3e5 * (1.1 + math.cos(t / 4))
             with hub.lock:
                 hub.sys = {"cpu": round(cpu, 1), "cores": [round(c, 1) for c in cores], "ram": 41.6,
-                           "ramUsed": 26.6e9, "ramTotal": 64e9, "swap": 0, "gpu": round(18 + 9 * math.sin(t / 5), 1),
+                           "ramUsed": 26.6e9, "ramTotal": 64e9, "swap": 0, "gpu": round(18 + 9 * math.sin(t / 5), 1), "vram": 46.0,
                            "temp": round(52 + cpu / 6, 1), "disk": 63.2, "diskFree": 7.1e11, "load": ["2.31", "1.87", "1.52"],
                            "uptime": 3 * 86400 + 4 * 3600 + 17 * 60 + (t % 3600), "rx": rx, "tx": tx,
                            "bat": None, "ip": "10.0.0.42", "host": "omarchy", "user": "you"}
@@ -4850,6 +4911,8 @@ def from_demo(hub: Hub) -> None:
                {"name": "website", "week": 3, "last": time.time() - 3 * 86400, "dirty": 0, "ci": "fail", "branch": "main"}]
     for r, (pu, br, td) in zip(hub.git, ((40, 3, 6), (30, 2, 2), (10, 1, 0), (6, 1, 0), (0, 1, 0))):
         r.update(pushed=pu, branches=br, today=td)
+    for r, (tot, tg) in zip(hub.git, ((1312, 14), (980, 9), (420, 3), (260, 0), (90, 1))):
+        r.update(total=tot, tags=tg)
     hub.fuel = fuel_level(hub.git, float(os.environ.get("PULSE_DEMO_FUEL_GOAL") or 300))
     now0 = time.time()
     t_train = float(os.environ.get("PULSE_DEMO_TRAIN_AT") or now0 + float(os.environ.get("PULSE_DEMO_TRAIN", "2400")))

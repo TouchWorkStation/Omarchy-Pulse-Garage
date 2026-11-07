@@ -23,6 +23,10 @@ class FuelTests(unittest.TestCase):
         self.assertAlmostEqual(f['level'], 32 / 60, places=3)
         self.assertEqual((f['commits'], f['pushed'], f['branches'], f['today'], f['repos']), (15, 8, 3, 3, 2))
 
+    def test_the_strip_totals_come_from_every_repository(self):
+        f = pulse.fuel_level([{'week': 1, 'total': 1000, 'tags': 4}, {'week': 0, 'total': 82, 'tags': 1}], goal=60)
+        self.assertEqual((f['allCommits'], f['releases'], f['repos']), (1082, 5, 1))
+
     def test_the_tank_is_never_over_full_and_a_quiet_week_is_empty(self):
         self.assertEqual(pulse.fuel_level([{'week': 500}], goal=60)['level'], 1.0)
         self.assertEqual(pulse.fuel_level([], goal=60)['level'], 0.0)
@@ -34,14 +38,14 @@ class FuelTests(unittest.TestCase):
 
 class GarageConfTests(unittest.TestCase):
     def test_defaults_and_overrides(self):
-        c = pulse.garage_conf({'cpu': 70, 'cluster': 'compact', 'motion': 'reduced', 'mechanics': False})
-        self.assertEqual((c['cpu'], c['cluster'], c['motion'], c['mechanics']), (70.0, 'compact', 'reduced', False))
+        c = pulse.garage_conf({'cpu': 70, 'layout': 'minimal', 'motion': 'reduced', 'brand': 'TouchWorkstation'})
+        self.assertEqual((c['cpu'], c['layout'], c['motion'], c['brand']), (70.0, 'minimal', 'reduced', 'TouchWorkstation'))
         self.assertEqual(c['ram'], pulse.GARAGE_DEFAULTS['ram'])
 
     def test_nonsense_is_ignored(self):
-        c = pulse.garage_conf({'cpu': 'hot', 'cluster': 'huge', 'unknown': 1})
+        c = pulse.garage_conf({'cpu': 'hot', 'layout': 'huge', 'unknown': 1})
         self.assertEqual(c['cpu'], pulse.GARAGE_DEFAULTS['cpu'])
-        self.assertEqual(c['cluster'], 'full')
+        self.assertEqual(c['layout'], 'full')
         self.assertNotIn('unknown', c)
 
 
@@ -87,6 +91,7 @@ class GitActivityTests(unittest.TestCase):
         self.assertEqual(info['today'], 2)
         self.assertEqual(info['branches'], 2)
         self.assertEqual(info['pushed'], 0)   # no remote: nothing pushed
+        self.assertEqual((info['total'], info['tags']), (2, 0))
 
 
 class StateTests(unittest.TestCase):
@@ -95,7 +100,7 @@ class StateTests(unittest.TestCase):
         hub.fuel = pulse.fuel_level([{'week': 6}], 60)
         st = hub.state()
         self.assertEqual(st['fuel']['commits'], 6)
-        self.assertEqual(st['ui']['garage']['cluster'], 'full')
+        self.assertEqual(st['ui']['garage']['layout'], 'full')
 
     def test_agents_remember_when_they_changed_state(self):
         hub = pulse.Hub()
@@ -113,9 +118,62 @@ class PageTests(unittest.TestCase):
         self.assertLess(html.index('garage.js'), html.index('pulse.js'))
 
     def test_the_garage_invents_nothing_it_cannot_read(self):
-        js = (WEB / 'garage.js').read_text()
-        for word in ('vram', 'token', 'cost', 'Math.random'):
-            self.assertNotIn(word, js.lower() if word != 'Math.random' else js, word)
+        js = (WEB / 'garage.js').read_text().lower()
+        for word in ('stars', 'cost', 'tokens used', 'mechanic'):
+            self.assertNotIn(word, js, word)
+
+    def test_the_page_loads_the_garage_styles(self):
+        self.assertIn('garage.css', (WEB / 'index.html').read_text())
+
+
+class PlateTests(unittest.TestCase):
+    def test_only_an_image_can_be_a_plate(self):
+        with tempfile.TemporaryDirectory() as d:
+            secret = Path(d) / 'id_rsa'
+            secret.write_text('no')
+            with mock.patch.object(pulse, 'WEB', Path(d) / 'web'):
+                self.assertIsNone(pulse.garage_plate({'plate': str(secret)}))
+                pic = Path(d) / 'car.jpg'
+                pic.write_bytes(b'\xff\xd8')
+                self.assertEqual(pulse.garage_plate({'plate': str(pic)}), pic)
+
+    def test_anchors_sit_beside_the_plate(self):
+        with tempfile.TemporaryDirectory() as d:
+            pic = Path(d) / 'car.png'
+            pic.write_bytes(b'x')
+            (Path(d) / 'car.json').write_text('{"headlights": [[0.2, 0.6, 30]]}')
+            self.assertEqual(pulse.plate_anchors(pic)['headlights'][0][0], 0.2)
+            self.assertEqual(pulse.plate_anchors(None), {})
+
+    def test_the_plate_route_needs_the_token(self):
+        import threading, urllib.request, urllib.error
+        from http.server import ThreadingHTTPServer
+        hub = pulse.Hub()
+        srv = ThreadingHTTPServer(('127.0.0.1', 0), pulse.make_handler(hub, 'tok', 0))
+        port = srv.server_address[1]
+        h = pulse.make_handler(hub, 'tok', port)
+        srv.RequestHandlerClass = h
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        try:
+            with self.assertRaises(urllib.error.HTTPError) as e:
+                urllib.request.urlopen(f'http://127.0.0.1:{port}/api/garage/anchors')
+            self.assertEqual(e.exception.code, 401)
+            r = urllib.request.urlopen(f'http://127.0.0.1:{port}/api/garage/anchors?token=tok')
+            self.assertEqual(r.status, 200)
+        finally:
+            srv.shutdown()
+
+
+class VramTests(unittest.TestCase):
+    def test_nvidia_vram(self):
+        out = subprocess.CompletedProcess([], 0, stdout='2048, 8192\n')
+        with mock.patch.object(pulse.Path, 'glob', return_value=[]), mock.patch.object(pulse.shutil, 'which', return_value='/x'), \
+                mock.patch.object(pulse.subprocess, 'run', return_value=out):
+            self.assertEqual(pulse.read_vram(), 25.0)
+
+    def test_no_gpu_no_number(self):
+        with mock.patch.object(pulse.Path, 'glob', return_value=[]), mock.patch.object(pulse.shutil, 'which', return_value=None):
+            self.assertIsNone(pulse.read_vram())
 
 
 if __name__ == '__main__':

@@ -230,15 +230,3 @@ body.sceneonly #digest, body.suspended #digest { display: none !important; }
 #clock .who .heart { color: var(--crit); }
 body.sceneonly #heard, body.suspended #heard { display: none !important; }
 
-/* ---- the garage scene ([pulse] scene = "garage"): the scene is the interface; panels only with [garage] panels = true */
-body.garage #ui, body.garage #ticker, body.garage #vig, body.garage #drones { display: none; }
-body.garage.garage-panels #ui { display: grid; grid-template-columns: 22rem 1fr 22rem; }
-body.garage.garage-panels #center { visibility: hidden; }
-#gcard { position: fixed; z-index: 20; min-width: 15rem; max-width: 24rem; padding: .9rem 1.1rem; border-radius: .5rem;
-  background: rgba(10,10,12,.94); border: 1px solid rgba(196,200,208,.18); border-top: 2px solid rgb(255,42,62);
-  color: #eceef4; font-size: 1.05rem; line-height: 1.5; box-shadow: 0 1rem 3rem rgba(0,0,0,.6); }
-#gcard b { display: block; text-transform: uppercase; letter-spacing: .15em; margin-bottom: .35rem; }
-#gcard div { display: flex; justify-content: space-between; gap: 1.2rem; }
-#gcard span { color: rgba(196,200,208,.6); }
-#gcard i { font-style: normal; text-align: right; }
-body.garage #fxtext { top: 36%; font-size: 2.4rem; }

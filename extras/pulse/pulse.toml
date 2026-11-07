@@ -71,19 +71,21 @@ root = "auto"                    # your repositories are towers (~/code, ~/src, 
 ci = "auto"                      # the beacon on top: GitHub Actions of the branch (needs `gh auth login`)
 max = 8
 
-[garage]                         # scene = "garage": your PC is a car in a workshop, your agents its mechanics
+[garage]                         # scene = "garage": your PC as a car in a workshop (docs/GARAGE.md)
+brand = "Omarchy Pulse"          # the name at the top left (your project, your studio...)
+tagline = "REPOSITORIES · AGENTS · BUILDS · PULSE"
+link = ""                        # bottom left, e.g. "github.com/you" ("" = hidden)
+plate = ""                       # the picture: your own render or photo (jpg/png/webp); plate.json beside it says
+                                 # where its headlights, floor and window are. "" = the one in web/garage/, if any
 fuel_goal = 60                   # a full tank, in points a week: 1 a commit, +1 when it is pushed, 3 a branch you worked on
-cpu = 85                         # % for the warning lights on the dashboard (they go off again 5% below)
+cpu = 85                         # % for the dashboard lights (they go off again 5% below)
 gpu = 90
 ram = 85
+vram = 90
 disk = 90
-temp = 90                        # °C
-wait_red = 10                    # minutes an agent can wait for you before its amber light turns red
-mechanics = true                 # your agents as mechanics around the car
-projects = true                  # your repositories as tags on the tool wall, with their CI light
-cluster = "full"                 # the instrument cluster: "full" | "compact" (lights and fuel only) | "off"
-motion = "full"                  # "full" | "reduced" (no swinging or bobbing, fewer frames) | "off" (a still garage)
-panels = false                   # true: your [[source]] panels and the clock stay on the sides of the garage
+wait_red = 10                    # minutes an agent can wait for you before its light turns red
+layout = "full"                  # "full" | "minimal" (the bar, the lights and the strip: no side panels)
+motion = "full"                  # "full" | "reduced" (fewer frames, no breathing) | "off" (a still picture)
 
 [space]
 enabled = true                   # the ISS when it passes over your city, a real aurora in a geomagnetic storm,
