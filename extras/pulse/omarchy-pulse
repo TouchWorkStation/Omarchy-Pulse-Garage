@@ -38,6 +38,7 @@
                                  your electric car (Tessie or Home Assistant): its battery, or a command
   omarchy-pulse doorbell         ring the doorbell (a test: the sphere shows the door camera, the chime rings)
   omarchy-pulse notifications clear   empty the notifications panel (or click it)
+  omarchy-pulse scene [NAME]     switch the live scene: sphere | skyline | orbit | calm | garage (saved in pulse.toml)
   omarchy-pulse reload           re-read pulse.toml now (it is also re-read by itself when you save it)
   omarchy-pulse doctor           check dependencies, config and sources
 
@@ -96,6 +97,10 @@ LEVELS = ("ok", "info", "warn", "crit")
 BUILTIN_IDS = {"sys", "net", "weather", "media", "notifications", "github"}
 HIST = 90   # points kept for sparklines
 AGENT_STATES = ("idle", "working", "waiting", "done", "failed")
+SCENES = ("sphere", "skyline", "orbit", "calm", "garage")   # [pulse] scene; `omarchy-pulse scene NAME` switches
+GARAGE_DEFAULTS = {"cpu": 85, "gpu": 90, "ram": 85, "disk": 90, "temp": 90, "fuel_goal": 60, "mechanics": True,
+                   "cluster": "full", "projects": True, "wait_red": 10, "panels": False, "motion": "full"}
+GARAGE_CHOICES = {"cluster": ("full", "compact", "off"), "motion": ("full", "reduced", "off")}
 # [colors] preset = "..." (or "theme", the default: the colours of the Omarchy theme in use)
 PRESETS = {
     "synthwave": {"bg": "#070a12", "fg": "#c9d6f2", "accent": "#39e1ff", "accent2": "#ff3fb4", "ok": "#6ff0a8",
@@ -398,6 +403,7 @@ class Hub:
         self.perf: dict = {}                   # frame pacing reported by every monitor's page
         self.location: tuple | None = None     # (lat, lon) of the weather: the ISS passes over it
         self.git: list = []                    # your repositories: towers of the Git city
+        self.fuel: dict | None = None          # the garage's fuel gauge: this week's commits, pushes and branches
         self.space: dict = {}                  # the ISS over you, the Kp index (aurora), solar flares
         self.heart: dict | None = None         # your heart rate, if you connect one (never logged)
         self.crew_code = ""
@@ -585,6 +591,8 @@ class Hub:
             prev = a.get("state")
             if st == "working" and prev != "working":
                 a["since"] = now
+            if st != prev:
+                a["changed"] = now   # how long it has been waiting for you (the garage shows it)
             a.update(state=st, text=str(text or "")[:80], t=now)
             self.agents[name] = a
         if st == prev:
@@ -1846,9 +1854,12 @@ class Hub:
                     info["ci"] = ci
                     prev[key] = info
                     out.append({"name": name, "week": info["week"], "last": info["last"], "dirty": info["dirty"],
-                                "ci": ci, "branch": info["branch"][:24]})
+                                "ci": ci, "branch": info["branch"][:24], "today": info.get("today", 0),
+                                "pushed": info.get("pushed", 0), "branches": info.get("branches", 0)})
                 out.sort(key=lambda r: (-r["week"], -r["last"]))
+                goal = (self.conf("garage", default={}) or {}).get("fuel_goal", GARAGE_DEFAULTS["fuel_goal"])
                 with self.lock:
+                    self.fuel = fuel_level(out, goal)   # every repository counts, not only the towers shown
                     self.git = out[: int(g.get("max", 8) or 8)]
             except Exception as e:   # noqa: BLE001
                 log(f"git: {e}")
@@ -2228,7 +2239,7 @@ class Hub:
             self.skyline_override = k
             said = m.group(2).strip(" .?!").title()
             return L(f"Welcome to {said}.", f"Benvenuto a {said}.")
-        m = re.search(r"\b(scene|scena)\s+(sphere|sfera|skyline|orbit|calm)", t)
+        m = re.search(r"\b(scene|scena)\s+(sphere|sfera|skyline|orbit|calm|garage)", t)
         if m:
             self.scene_override = {"sfera": "sphere"}.get(m.group(2), m.group(2))
             return L(f"Scene {self.scene_override}.", f"Scena {self.scene_override}.")
@@ -2831,6 +2842,7 @@ class Hub:
                     "speaking": self.speaking,
                     "fxSeq": self.fx_seq, "music": bool(self.audio) and time.time() - self.audio_t < 1,
                     "perfProbe": time.time() < self.perf_probe,
+                    "fuel": self.fuel,
                     "growth": self.growth_state() if self.conf("city", "enabled", default=True) is not False else None,
                     "sky": self.sky.get("planes", []) if time.time() - self.sky.get("t", 0) < 120 else [],
                     "calendar": [{**e, "title": "" if self.privacy() else e["title"]} for e in self.calendar],
@@ -2869,7 +2881,8 @@ class Hub:
                            "sound": sound_conf(self.conf("sound", default={}) or {}, self.in_meeting, self.privacy()),
                            "sphere": self.conf("pulse", "sphere", default="real"),
                            "cars": self.conf("lan", "cars", default=True) is not False,
-                           "eyes": self.conf("presence", "eyes", default=True) is not False}}
+                           "eyes": self.conf("presence", "eyes", default=True) is not False,
+                           "garage": garage_conf(self.conf("garage", default={}) or {})}}
 
     def skyline(self) -> str:
         """The real city behind the towers: "auto" follows the weather's city (not while sharing the screen)."""
@@ -3368,6 +3381,51 @@ def speak(text: str, v: dict) -> None:
                      "install piper-tts and a voice in ~/.local/share/piper/, or espeak-ng"))
 
 
+def fuel_level(repos: list, goal=60) -> dict:
+    """The garage's fuel gauge, from your own Git history: a point for every commit of the last 7 days, one more when
+    it is pushed, three for every branch you worked on. Old work leaves the window, so the tank drains by itself."""
+    try:
+        goal = max(1.0, float(goal))
+    except (TypeError, ValueError):
+        goal = 60.0
+    commits = sum(int(r.get("week") or 0) for r in repos)
+    pushed = sum(int(r.get("pushed") or 0) for r in repos)
+    branches = sum(int(r.get("branches") or 0) for r in repos)
+    points = commits + pushed + 3 * branches
+    return {"level": round(min(1.0, points / goal), 3), "points": points, "goal": int(goal), "commits": commits,
+            "pushed": pushed, "branches": branches, "today": sum(int(r.get("today") or 0) for r in repos),
+            "repos": sum(1 for r in repos if r.get("week"))}
+
+
+def garage_conf(c: dict) -> dict:
+    """[garage] with its defaults: the warning thresholds (%) and what the garage shows."""
+    out = dict(GARAGE_DEFAULTS)
+    for k, v in (c or {}).items():
+        if k not in out:
+            continue
+        if isinstance(GARAGE_DEFAULTS[k], bool):
+            out[k] = v is not False
+        elif isinstance(GARAGE_DEFAULTS[k], (int, float)):
+            try:
+                out[k] = max(1.0, min(100000.0, float(v)))
+            except (TypeError, ValueError):
+                pass
+        else:
+            out[k] = str(v) if str(v) in GARAGE_CHOICES.get(k, ()) else out[k]
+    return out
+
+
+def with_scene(text: str, name: str) -> str:
+    """pulse.toml with [pulse] scene set to NAME, the rest of the file (and its comments) untouched."""
+    line = f'scene = "{name}"'
+    new, n = re.subn(r'(?m)^scene\s*=\s*"[^"\n]*"', line, text, count=1)
+    if n:
+        return new
+    if re.search(r"(?m)^\[pulse\]\s*$", text):
+        return re.sub(r"(?m)^\[pulse\]\s*$", "[pulse]\n" + line, text, count=1)
+    return "[pulse]\n" + line + "\n\n" + text
+
+
 def git_info(path) -> dict | None:
     def g(*a):
         try:
@@ -3379,9 +3437,16 @@ def git_info(path) -> dict | None:
     if not head:
         return None
     week = g("rev-list", "--count", "--since=7.days", "HEAD")
+    today = g("rev-list", "--count", "--since=midnight", "HEAD")
+    pushed = g("rev-list", "--count", "--since=7.days", "@{u}")   # this week's commits that reached the remote
+    cut = time.time() - 7 * 86400
+    branches = sum(1 for x in g("for-each-ref", "--format=%(committerdate:unix)", "refs/heads").split()
+                   if x.isdigit() and int(x) > cut)   # branches with work on them this week
     last = g("log", "-1", "--format=%ct")
     return {"head": head, "up": g("rev-parse", "@{u}"), "branch": g("rev-parse", "--abbrev-ref", "HEAD"),
             "week": int(week) if week.isdigit() else 0, "last": int(last) if last.isdigit() else 0,
+            "today": int(today) if today.isdigit() else 0, "pushed": int(pushed) if pushed.isdigit() else 0,
+            "branches": branches,
             "dirty": len([x for x in g("status", "--porcelain", "--untracked-files=no").splitlines() if x]),
             "remote": g("remote", "get-url", "origin")}
 
@@ -4767,6 +4832,8 @@ def from_demo(hub: Hub) -> None:
     hub.set_agent("claude · omarchytv", "working", "editing")
     hub.set_agent("grok", "waiting", "needs your OK")
     hub.set_agent("codex · pulse", "working", "running a command")
+    if os.environ.get("PULSE_DEMO_FAILED"):
+        hub.set_agent("opencode · site", "failed", "tests failed")
     try:   # the real news feeds, if the network answers
         r = subprocess.run([str(HERE / "sources" / "pulse-feed"), "Omarchy=https://github.com/basecamp/omarchy/releases.atom",
                             "DHH=https://world.hey.com/dhh/feed.atom"], capture_output=True, timeout=12)
@@ -4781,6 +4848,9 @@ def from_demo(hub: Hub) -> None:
                {"name": "homelab", "week": 12, "last": time.time() - 86400, "dirty": 2, "ci": "ok", "branch": "main"},
                {"name": "dotfiles", "week": 6, "last": time.time() - 2 * 86400, "dirty": 3, "ci": "", "branch": "main"},
                {"name": "website", "week": 3, "last": time.time() - 3 * 86400, "dirty": 0, "ci": "fail", "branch": "main"}]
+    for r, (pu, br, td) in zip(hub.git, ((40, 3, 6), (30, 2, 2), (10, 1, 0), (6, 1, 0), (0, 1, 0))):
+        r.update(pushed=pu, branches=br, today=td)
+    hub.fuel = fuel_level(hub.git, float(os.environ.get("PULSE_DEMO_FUEL_GOAL") or 300))
     now0 = time.time()
     t_train = float(os.environ.get("PULSE_DEMO_TRAIN_AT") or now0 + float(os.environ.get("PULSE_DEMO_TRAIN", "2400")))
     hub.calendar = [{"title": "standup", "start": t_train, "end": t_train + 900},
@@ -5267,6 +5337,23 @@ def main(argv: list[str]) -> int:
         except Exception as e:   # noqa: BLE001
             print(f"omarchy-pulse is not running? ({e})", file=sys.stderr)
             return 1
+        return 0
+    if cmd == "scene":
+        cur = str((load_config().get("pulse") or {}).get("scene", "sphere"))
+        if len(argv) < 3:
+            print(f"scene: {cur}   (choose one: {' | '.join(SCENES)}, or next)")
+            return 0
+        name = argv[2].lower()
+        if name == "next":
+            name = SCENES[(SCENES.index(cur) + 1) % len(SCENES)] if cur in SCENES else SCENES[0]
+        if name not in SCENES:
+            print(f"unknown scene {name!r}: {' | '.join(SCENES)}", file=sys.stderr)
+            return 1
+        CONF_DIR.mkdir(parents=True, exist_ok=True)
+        text = CONF.read_text() if CONF.exists() else (HERE / "pulse.toml").read_text()
+        CONF.write_text(with_scene(text, name))
+        quiet_client("/api/reload")   # running: now; otherwise the next start shows it
+        print(f"scene: {name}")
         return 0
     if cmd == "reload":
         try:

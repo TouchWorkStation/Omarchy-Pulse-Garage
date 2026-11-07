@@ -185,13 +185,37 @@ Actions, MQTT and more, privacy, tuning, troubleshooting): [docs/GUIDE.md](docs/
 
 ## Scenes and wallpapers
 
-Four live scenes: **sphere** (the LED sphere in the city, the default from 1.1), **skyline** (the city of your CPU
-cores around a wireframe core), **orbit** (the cores become moons around a larger core) and **calm** (a still grid,
-lighter on the PC). Pick one with `scene` in `~/.config/omarchy-pulse/pulse.toml`, or in one line:
+Five live scenes: **sphere** (the LED sphere in the city, the default from 1.1), **skyline** (the city of your CPU
+cores around a wireframe core), **orbit** (the cores become moons around a larger core), **calm** (a still grid,
+lighter on the PC) and **garage** (your PC as a car in a dark workshop, below). Pick one with `scene` in
+`~/.config/omarchy-pulse/pulse.toml`, or switch from a terminal (your choice is saved):
 
 ```
-sed -i 's/^scene = .*/scene = "sphere"/' ~/.config/omarchy-pulse/pulse.toml    # sphere | skyline | orbit | calm
+omarchy-pulse scene garage     # sphere | skyline | orbit | calm | garage
+omarchy-pulse scene next       # the next one (bind it to a key)
+omarchy-pulse scene            # which one is on
 ```
+
+### The garage (beta)
+
+![The garage scene](docs/garage-preview.png)
+
+Your PC is an unbranded black coupe in a dark workshop, and the scene is the interface:
+
+- **The fuel gauge is the work you ship.** A point for every commit of the last 7 days, one more when it is pushed,
+  three for every branch you worked on, from the repositories of `[git]`. Old work leaves the window, so the tank
+  drains if you stop. A push floats up from the gauge as `+ REFUEL`. Set a full tank with `fuel_goal` in `[garage]`.
+- **Your agents are mechanics.** Working: a work light on the car and a wrench in hand. Waiting for you: they stop,
+  an amber `!` over their head and the car's **hazard lights** blink (red after `wait_red` minutes). Failed: a red
+  `✕` and the **CHECK** light. Done: a green ring, then they rest. Up to four around the car, then `+N`.
+  Click one for its card: agent, project, what it is doing, for how long. Nothing that Pulse does not know.
+- **The cluster is your PC:** ENGINE is the CPU, BOOST the GPU (the temperature without one), RAM, disk, network,
+  and warning lights (ENG, GPU, MEM, DISK, TEMP, NET, FUEL) at the thresholds of `[garage]`. They come on at the
+  threshold and go off 5% below it, so they never flicker. High CPU is amber, never a failure.
+- **The tool wall is your projects:** each repository with its CI light and this week's commits.
+
+`[garage]` also has `cluster = "compact"` or `"off"`, `motion = "reduced"` or `"off"`, `mechanics`, `projects`
+and `panels = true` (your panels on the sides). Sharing the screen hides the project names.
 
 The wallpaper switches within about 3 seconds (`omarchy-pulse reload` to do it now).
 

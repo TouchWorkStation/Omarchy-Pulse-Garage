@@ -540,7 +540,7 @@
       try {
         shareMode = true;
         if (skyAuto && city) { city = ""; paintStatic(); }   // a city found from your weather would tell where you live
-        draw(now);
+        paint(now);
         var w = Math.min(1280, W), h = Math.round(w * H / W), oc = document.createElement("canvas");
         oc.width = w; oc.height = h; oc.getContext("2d").drawImage(cv, 0, 0, w, h);
         var url = oc.toDataURL("image/jpeg", 0.82);
@@ -2100,6 +2100,10 @@
       shooting = keep;
     }
 
+    function paint(now) {   // [pulse] scene = "garage": its own renderer (garage.js), the same state
+      if (kind === "garage" && window.PulseGarage) window.PulseGarage.draw(g, W, H, now, { share: shareMode, privacy: privacyOn });
+      else draw(now);
+    }
     function draw(now) {
       var t = (now - t0) / 1000;
       var hz = H * 0.745, cx = W / 2;
@@ -2362,7 +2366,7 @@
       last = now;
       beat(now);
       var a = performance.now();
-      try { draw(now); } catch (e) { if (window.PULSE_DEBUG && !frame._err) { frame._err = 1; console.error("draw: " + e + " " + (e.stack || "")); } }   // never stop the wallpaper for one bad frame
+      try { paint(now); } catch (e) { if (window.PULSE_DEBUG && !frame._err) { frame._err = 1; console.error("draw: " + e + " " + (e.stack || "")); } }   // never stop the wallpaper for one bad frame
       var cost = performance.now() - a;
       if (!probe && (cost > 22 || gap > 1.7 * 1000 / want) && want > 6) {
         if (++slow > 60) {
@@ -2389,6 +2393,7 @@
         cursorXY = [x, y]; cursorAt = performance.now();
       },
       fx: function (f) {
+        if (kind === "garage") { if (window.PulseGarage) window.PulseGarage.fx(f); if (f.text && f.kind !== "push" && f.kind !== "commit" && f.kind !== "shooting") fxText(f.text); return; }
         if (f.kind === "shooting") { shooting.push({ x: Math.random() * W * 0.6, y: H * 0.05, vx: W * 0.012, vy: H * 0.006, life: 1 }); return; }
         var tnow = (performance.now() - t0) / 1000;
         if (f.kind === "push" || f.kind === "commit") {   // a tower of the Git city lights up
@@ -2474,6 +2479,14 @@
         var bat = sys.bat && sys.bat.status === "Discharging";
         fps = full ? 1 : busy ? 8 : Math.min(+Q.get("fps") || +ui.fps || 20, bat ? 12 : 60);
         if (kind === "calm") fps = Math.min(fps, 10);
+        var gcfg = ui.garage || {};
+        if (kind === "garage") {
+          if (window.PulseGarage) window.PulseGarage.update(st, m);
+          if (gcfg.motion === "reduced") fps = Math.min(fps, 10);
+          if (gcfg.motion === "off") fps = Math.min(fps, 1);
+        }
+        document.body.classList.toggle("garage", kind === "garage");
+        document.body.classList.toggle("garage-panels", kind === "garage" && gcfg.panels === true);
         if (away) fps = Math.min(fps, 8);   // nobody is looking: save power
         paused = full;
         document.body.classList.toggle("busy", busy);

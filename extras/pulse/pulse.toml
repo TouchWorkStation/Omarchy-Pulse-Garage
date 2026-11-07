@@ -7,7 +7,7 @@
 city = ""                        # weather: "Milan", "Berlin"... (or latitude = 45.46 / longitude = 9.19)
 units = "metric"                 # or "imperial"
 clock = "24h"                    # or "12h"
-scene = "sphere"                 # sphere (the LED sphere) | skyline | orbit | calm
+scene = "sphere"                 # sphere (the LED sphere) | skyline | orbit | calm | garage (or: omarchy-pulse scene garage)
 skyline = "auto"                 # the real city behind the towers: "auto" (the weather's city), "off", or one of
                                  # 90+ cities: rome, milan, alessandria, new-york, tokyo, paris... (docs/GUIDE.md 22)
 sphere = "real"                  # the sphere's look: "real" (one continuous image) | "led" (thousands of separate lights)
@@ -70,6 +70,20 @@ root = "auto"                    # your repositories are towers (~/code, ~/src, 
 # repos = ["~/code/omarchytv", "~/code/omarchy-pulse-theme"]   # or exactly these
 ci = "auto"                      # the beacon on top: GitHub Actions of the branch (needs `gh auth login`)
 max = 8
+
+[garage]                         # scene = "garage": your PC is a car in a workshop, your agents its mechanics
+fuel_goal = 60                   # a full tank, in points a week: 1 a commit, +1 when it is pushed, 3 a branch you worked on
+cpu = 85                         # % for the warning lights on the dashboard (they go off again 5% below)
+gpu = 90
+ram = 85
+disk = 90
+temp = 90                        # °C
+wait_red = 10                    # minutes an agent can wait for you before its amber light turns red
+mechanics = true                 # your agents as mechanics around the car
+projects = true                  # your repositories as tags on the tool wall, with their CI light
+cluster = "full"                 # the instrument cluster: "full" | "compact" (lights and fuel only) | "off"
+motion = "full"                  # "full" | "reduced" (no swinging or bobbing, fewer frames) | "off" (a still garage)
+panels = false                   # true: your [[source]] panels and the clock stay on the sides of the garage
 
 [space]
 enabled = true                   # the ISS when it passes over your city, a real aurora in a geomagnetic storm,
