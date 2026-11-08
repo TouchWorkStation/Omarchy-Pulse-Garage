@@ -1,0 +1,24 @@
+/* Omarchy Pulse: CommitCanopy. (c) 2026 Marco Porro (x.com/MarcoPorro), MIT. */
+body.canopy #drones { display: none; }
+body.canopy #vig { background: radial-gradient(ellipse 70% 70% at 55% 55%, transparent 55%, rgba(0,0,0,.55) 100%); }
+body.canopy #center-w { max-height: 13rem; }
+body.canopy #clock .time { text-shadow: 0 0 2.4rem rgba(var(--accent-rgb), .4), 0 0 .3rem rgba(var(--accent-rgb), .25); }
+.c-head { display: flex; align-items: center; gap: 1.2rem; }
+.c-head .c-pct, .c-head .c-pct span { font-size: 3rem; font-weight: 200; line-height: 1; }
+.c-head .c-pct small { font-size: 1.2rem; color: var(--accent); margin-left: .2rem; }
+.c-head b { display: block; font-weight: 400; letter-spacing: .14em; text-transform: uppercase; color: var(--accent2); font-size: .95rem; }
+.c-head span { font-size: .85rem; color: var(--dim); }
+.c-bar { height: 3px; margin: .8rem 0 .7rem; background: rgba(var(--dim-rgb), .35); }
+.c-bar i { display: block; height: 100%; background: linear-gradient(90deg, rgba(var(--accent-rgb), .55), var(--accent)); box-shadow: 0 0 .6rem rgba(var(--accent-rgb), .7); transition: width 2s; }
+.c-row { display: grid; grid-template-columns: 4.6rem 4.4rem 1fr; gap: .6rem; align-items: baseline; line-height: 1.75; font-size: 1rem; }
+.c-row .k { color: rgba(var(--fg-rgb), .6); }
+.c-row .n { text-align: right; font-variant-numeric: tabular-nums; }
+.c-row .s { color: var(--dim); font-size: .85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.c-row .s b { color: var(--ok); font-weight: 400; }
+.c-vig { margin-top: .5rem; font-size: .9rem; color: rgba(var(--fg-rgb), .6); }
+.c-vig b { font-weight: 400; } .c-vig .ok { color: var(--ok); } .c-vig .warn { color: var(--warn); } .c-vig .crit { color: var(--crit); }
+.c-note { color: var(--dim); }
+.c-toast { position: fixed; left: 50%; bottom: 8rem; transform: translateX(-50%); z-index: 3; font-size: 1.5rem; letter-spacing: .3em; pointer-events: none;
+  color: var(--ok); text-shadow: 0 0 1.2rem rgba(var(--ok-rgb), .6); opacity: 0; transition: opacity .6s, transform .6s; white-space: nowrap; }
+.c-toast.on { opacity: 1; transform: translate(-50%, -1rem); }
+body:not(.canopy) .c-toast { display: none; }

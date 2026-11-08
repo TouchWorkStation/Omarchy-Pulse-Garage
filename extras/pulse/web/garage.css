@@ -6,7 +6,7 @@ body.garage #vig { background: radial-gradient(ellipse 70% 70% at 50% 58%, trans
 body.garage #center-w { max-height: 13rem; }
 body.garage #clock .time { text-shadow: 0 0 2.4rem rgba(var(--accent-rgb), .45), 0 0 .3rem rgba(var(--accent-rgb), .3); }
 #garage { position: fixed; inset: 0; pointer-events: none; z-index: 2; }
-#garage[hidden], #garage.off .g-dash { display: none; }
+body:not(.garage) #garage, #garage.off .g-dash { display: none; }
 #garage svg { width: 1.6em; height: 1.6em; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; flex: none; }
 .dot { display: inline-block; width: .7rem; height: .7rem; border-radius: 50%; background: rgba(var(--fg-rgb), .3); flex: none; }
 .dot.ok { background: var(--ok); box-shadow: 0 0 .6rem rgba(var(--ok-rgb), .6); }

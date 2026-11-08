@@ -7,7 +7,7 @@
 city = ""                        # weather: "Milan", "Berlin"... (or latitude = 45.46 / longitude = 9.19)
 units = "metric"                 # or "imperial"
 clock = "24h"                    # or "12h"
-scene = "garage"                 # sphere | skyline | orbit | calm | garage (omarchy-pulse scene NAME)
+scene = "garage"                 # sphere | skyline | orbit | calm | garage | canopy (omarchy-pulse scene NAME)
 skyline = "auto"                 # the real city behind the towers: "auto" (the weather's city), "off", or one of
                                  # 90+ cities: rome, milan, alessandria, new-york, tokyo, paris... (docs/GUIDE.md 22)
 sphere = "real"                  # the sphere's look: "real" (one continuous image) | "led" (thousands of separate lights)
@@ -87,6 +87,16 @@ disk = 90
 wait_red = 10                    # minutes an agent can wait for you before its light turns red
 dash = true                      # the dashboard lights under the car
 motion = "full"                  # "full" | "reduced" (fewer frames, no breathing) | "off" (a still picture)
+
+[canopy]                         # scene = "canopy": CommitCanopy, a red maple that grows with your code
+start = "planted"                # "planted": it grows from today (your history is a head start) | "history": all of it
+pace = 400                       # how fast it grows: points for a big step (1 a commit, 6 a branch, 15 a release)
+sky = "dusk"                     # "dusk" (the setting sun) | "night" | "auto" (night from 20:00 to 6:00)
+colors = "canopy"                # crimson and warm silver; "theme" keeps your Omarchy theme
+fireflies = true                 # your AI agents, as fireflies (amber by the trunk when one waits for you)
+wind = true                      # the real wind moves the leaves
+panel = true                     # the canopy panel: growth, leaves, limbs, blooms
+motion = "full"                  # "full" | "reduced" | "off"
 
 [space]
 enabled = true                   # the ISS when it passes over your city, a real aurora in a geomagnetic storm,

@@ -161,7 +161,7 @@ class StateTests(unittest.TestCase):
 
     def test_the_garage_adds_its_panels_to_pulse(self):
         js = (WEB / 'pulse.js').read_text()
-        self.assertIn('PulseGarage.panels(S, left, right, panel, bodyOf)', js)
+        self.assertIn('sx.panels(S, left, right, panel, bodyOf)', js)
 
     def test_agents_remember_when_they_changed_state(self):
         hub = pulse.Hub()
@@ -242,6 +242,64 @@ class VramTests(unittest.TestCase):
     def test_no_gpu_no_number(self):
         with mock.patch.object(pulse.Path, 'glob', return_value=[]), mock.patch.object(pulse.shutil, 'which', return_value=None):
             self.assertIsNone(pulse.read_vram())
+
+
+class CanopyTests(unittest.TestCase):
+    CONF = dict(pulse.CANOPY_DEFAULTS)
+
+    def test_planting_keeps_history_as_a_head_start_only(self):
+        view, st = pulse.canopy_growth({'commits': 3000, 'heads': 40, 'tags': 25}, [], {}, self.CONF, 0.5, now=1000.0)
+        self.assertEqual(st['planted'], 1000.0)
+        self.assertLess(view['growth'], 0.36)                 # never a full tree on day one
+        self.assertGreater(view['growth'], 0.1)               # but a long history is not a seed either
+        self.assertEqual((view['leaves'], view['limbs'], view['blooms']), (3000, 40, 25))
+
+    def test_commits_branches_releases_grow_it(self):
+        _, st = pulse.canopy_growth({'commits': 10, 'heads': 1, 'tags': 0}, [], {}, self.CONF, now=1000.0)
+        v0, _ = pulse.canopy_growth({'commits': 10, 'heads': 1, 'tags': 0}, [], st, self.CONF, now=2000.0)
+        v1, st = pulse.canopy_growth({'commits': 60, 'heads': 3, 'tags': 1}, [], st, self.CONF, now=3000.0)
+        self.assertGreater(v1['growth'], v0['growth'])
+        self.assertEqual(v1['grown'], {'leaves': 50, 'limbs': 2, 'blooms': 1})
+
+    def test_it_never_shrinks(self):
+        _, st = pulse.canopy_growth({'commits': 10, 'heads': 1, 'tags': 0}, [], {}, self.CONF, now=1000.0)
+        big, st = pulse.canopy_growth({'commits': 200, 'heads': 9, 'tags': 3}, [], st, self.CONF, now=2000.0)
+        after, st = pulse.canopy_growth({'commits': 150, 'heads': 2, 'tags': 0}, [], st, self.CONF, now=3000.0)   # a repo moved away, branches deleted
+        self.assertEqual(after['growth'], big['growth'])
+        self.assertEqual(after['grown'], big['grown'])
+
+    def test_github_events_count_once(self):
+        ev = [['e1', 'commit', 5], ['e2', 'branch', 1], ['e3', 'release', 1]]
+        _, st = pulse.canopy_growth({'commits': 0, 'heads': 0, 'tags': 0}, [], {}, self.CONF, now=1000.0)
+        v1, st = pulse.canopy_growth({'commits': 0, 'heads': 0, 'tags': 0}, ev, st, self.CONF, now=2000.0)
+        v2, st = pulse.canopy_growth({'commits': 0, 'heads': 0, 'tags': 0}, ev, st, self.CONF, now=3000.0)
+        self.assertEqual(v1['grown'], {'leaves': 5, 'limbs': 1, 'blooms': 1})
+        self.assertEqual(v2['grown'], v1['grown'])
+
+    def test_history_mode_starts_grown(self):
+        conf = dict(self.CONF, start='history')
+        v, _ = pulse.canopy_growth({'commits': 3000, 'heads': 40, 'tags': 25}, [], {}, conf, now=1000.0)
+        self.assertGreater(v['growth'], 0.9)
+        self.assertEqual(v['stage'], 'ancient')
+
+    def test_stages(self):
+        self.assertEqual(next(n for lim, n in pulse.STAGES if 0.05 < lim), 'seedling')
+        self.assertEqual(next(n for lim, n in pulse.STAGES if 0.5 < lim), 'young tree')
+
+    def test_canopy_brings_its_colours(self):
+        hub = pulse.Hub()
+        hub.scene_override = 'canopy'
+        self.assertEqual(hub.colors()['preset'], 'canopy')
+
+    def test_canopy_conf(self):
+        c = pulse.canopy_conf({'sky': 'auto', 'pace': 'x', 'fireflies': 0, 'nope': 1})
+        self.assertEqual((c['sky'], c['pace'], c['fireflies']), ('auto', 400, False))
+        self.assertNotIn('nope', c)
+
+    def test_the_page_loads_the_canopy(self):
+        html = (WEB / 'index.html').read_text()
+        self.assertLess(html.index('canopy.js'), html.index('pulse.js'))
+        self.assertIn('canopy.css', html)
 
 
 if __name__ == '__main__':

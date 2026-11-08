@@ -185,13 +185,14 @@ Actions, MQTT and more, privacy, tuning, troubleshooting): [docs/GUIDE.md](docs/
 
 ## Scenes and wallpapers
 
-Five live scenes: **sphere** (the LED sphere in the city, the default from 1.1), **skyline** (the city of your CPU
+Six live scenes: **sphere** (the LED sphere in the city, the default from 1.1), **skyline** (the city of your CPU
 cores around a wireframe core), **orbit** (the cores become moons around a larger core), **calm** (a still grid,
-lighter on the PC) and **garage** (your PC as a car in a dark workshop, below). Pick one with `scene` in
+lighter on the PC), **garage** (your PC as a car in a dark workshop) and **canopy** (CommitCanopy: a tree that grows
+with your code), both below. Pick one with `scene` in
 `~/.config/omarchy-pulse/pulse.toml`, or switch from a terminal (your choice is saved):
 
 ```
-omarchy-pulse scene garage     # sphere | skyline | orbit | calm | garage
+omarchy-pulse scene canopy     # sphere | skyline | orbit | calm | garage | canopy
 omarchy-pulse scene next       # the next one (bind it to a key)
 omarchy-pulse scene            # which one is on
 ```
@@ -219,6 +220,22 @@ lights it with your data. The garage adds:
 The picture stays on your PC: save it as `~/.config/omarchy-pulse/garage.jpg` (or `.png`, `.webp`), with a
 `garage.json` beside it that says where the headlights, floor and window are ([docs/GARAGE.md](docs/GARAGE.md)), or
 point `plate` in `[garage]` anywhere else. Without one, the bay is dark and empty.
+
+### CommitCanopy (beta)
+
+A red maple on a rock in a lake at dusk, that grows with your code. It is planted the first time you open it, then
+**every commit adds leaves, every branch a limb, every release makes it bloom**, from the repositories on your PC and
+from GitHub (pushes from any machine, through `gh auth login`). It never shrinks: a deleted branch or a moved
+repository takes nothing back. Your history gives it a head start, a young tree rather than a seed
+(`start = "history"` grows it from all of it at once). From a seedling to a sapling, a young tree, mature, ancient.
+
+How lush it is follows your last 7 days: crimson when you ship, darker and dropping leaves when the week is quiet.
+
+Everything Pulse does is there: the panels, your sources, the clock, the AI brief, the ticker, and in the scene the
+real weather (rain rings the lake, snow, the wind moves the leaves), your music (the crown and the water breathe with
+the bass), the alerts (a ripple runs across the lake), your AI agents (fireflies around the crown; one that waits for
+you hovers amber by the trunk), a commit (a leaf falls), a push (a gust), a release (the tree blooms). The water moves
+slowly, the graphics are drawn at your screen's full resolution. Settings: `[canopy]` in `pulse.toml`.
 
 The wallpaper switches within about 3 seconds (`omarchy-pulse reload` to do it now).
 

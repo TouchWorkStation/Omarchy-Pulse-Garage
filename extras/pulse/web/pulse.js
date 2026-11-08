@@ -352,9 +352,8 @@
       if (slot === "left") { left.push(el); nl++; } else if (slot === "center") center.push(el); else { right.push(el); nr++; }
     });
     var sceneNow = window.PULSE_SCENE || Q.get("scene") || ui.scene;
-    if (sceneNow === "garage" && window.PulseGarage) { try { window.PulseGarage.panels(S, left, right, panel, bodyOf); } catch (e) { console.error(e); } }
-    else { $("#garage") && ($("#garage").hidden = true); }
-    if (sceneNow === "garage" && $("#garage")) $("#garage").hidden = false;
+    var sx = window.PulseScenes && window.PulseScenes[sceneNow];   // a scene of its own (garage.js, canopy.js) adds its panels
+    if (sx && sx.panels) { try { sx.panels(S, left, right, panel, bodyOf); } catch (e) { console.error(e); } }
     place($("#left"), left); place($("#right"), right); place($("#center-w"), center);
     fit($("#left")); fit($("#right")); fit($("#center-w"));
     clock();
@@ -518,7 +517,7 @@
     function wantScale() {
       if (Q.get("q")) return +Q.get("q");
       if (quality === "half") return 0.5;
-      if (kind === "garage") return 1;   // a photo: always at full resolution (it is one cached picture, cheap to draw)
+      if (ext() && ext().hd) return 1;   // the garage and the canopy: always at full resolution (cached layers, cheap to draw)
       if (quality === "full") return 1;
       return qAuto;
     }
@@ -2105,8 +2104,9 @@
       shooting = keep;
     }
 
-    function paint(now) {   // [pulse] scene = "garage": its own renderer (garage.js), the same state
-      if (kind === "garage" && window.PulseGarage) window.PulseGarage.draw(g, W, H, now, { share: shareMode, privacy: privacyOn });
+    function ext() { return window.PulseScenes && window.PulseScenes[kind]; }   // a scene with its own renderer
+    function paint(now) {   // the garage (garage.js) and the canopy (canopy.js) draw themselves, from the same state
+      if (ext()) ext().draw(g, W, H, now, { share: shareMode, privacy: privacyOn });
       else draw(now);
     }
     function draw(now) {
@@ -2392,13 +2392,13 @@
     return {
       start: function () { if (!COL.bg) applyTheme(null); resize(); addEventListener("resize", resize); frameId = requestAnimationFrame(frame); },
       reset: reset,
-      audio: function (a) { audio = a || []; audioT = performance.now(); if (kind === "garage" && window.PulseGarage) window.PulseGarage.audio(audio); },
+      audio: function (a) { audio = a || []; audioT = performance.now(); if (ext() && ext().audio) ext().audio(audio); },
       cursor: function (x, y) {
         if (cursorXY && Math.abs(cursorXY[0] - x) < 1 && Math.abs(cursorXY[1] - y) < 1) return;
         cursorXY = [x, y]; cursorAt = performance.now();
       },
       fx: function (f) {
-        if (kind === "garage") { if (window.PulseGarage) window.PulseGarage.fx(f); if (f.text && f.kind !== "push" && f.kind !== "commit" && f.kind !== "shooting") fxText(f.text); return; }
+        if (ext()) { if (ext().fx) ext().fx(f); if (f.text && f.kind !== "push" && f.kind !== "commit" && f.kind !== "shooting") fxText(f.text); return; }
         if (f.kind === "shooting") { shooting.push({ x: Math.random() * W * 0.6, y: H * 0.05, vx: W * 0.012, vy: H * 0.006, life: 1 }); return; }
         var tnow = (performance.now() - t0) / 1000;
         if (f.kind === "push" || f.kind === "commit") {   // a tower of the Git city lights up
@@ -2485,20 +2485,20 @@
         var bat = sys.bat && sys.bat.status === "Discharging";
         fps = full ? 1 : busy ? 8 : Math.min(+Q.get("fps") || +ui.fps || 20, bat ? 12 : 60);
         if (kind === "calm") fps = Math.min(fps, 10);
-        var gcfg = ui.garage || {};
-        if (kind === "garage") {
-          if (window.PulseGarage) window.PulseGarage.update(st, m);
-          fps = Math.min(fps, 15);   // a still picture with slow lights: 15 frames are plenty, even at 4K
-          if (gcfg.motion === "reduced") fps = Math.min(fps, 8);
-          if (gcfg.motion === "off") fps = Math.min(fps, 1);
+        var sx = ext(), scfg = ui[kind] || {};
+        if (sx) {
+          sx.update(st, m);
+          fps = Math.min(fps, sx.fps || 15);   // slow light and water: a few frames are plenty, even at 4K
+          if (scfg.motion === "reduced") fps = Math.min(fps, 8);
+          if (scfg.motion === "off") fps = Math.min(fps, 1);
         }
-        document.body.classList.toggle("garage", kind === "garage");
+        Object.keys(window.PulseScenes || {}).forEach(function (k) { document.body.classList.toggle(k, kind === k); });
         if (away) fps = Math.min(fps, 8);   // nobody is looking: save power
         paused = full;
         document.body.classList.toggle("busy", busy);
         document.body.classList.toggle("calm", kind === "calm");
       },
-      alert: function (level) { if (kind === "garage" && window.PulseGarage) window.PulseGarage.alert(level); alertEnv = 1; alertCol = level === "crit" ? COL.crit : COL.warn; spikes.push({ born: performance.now(), amp: 1.6, col: alertCol }); }
+      alert: function (level) { if (ext() && ext().alert) ext().alert(level); alertEnv = 1; alertCol = level === "crit" ? COL.crit : COL.warn; spikes.push({ born: performance.now(), amp: 1.6, col: alertCol }); }
     };
   })();
 

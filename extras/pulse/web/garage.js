@@ -192,12 +192,12 @@
   }
   function waitCls(a) { return (Date.now() / 1000 - (a.changed || a.t || 0)) / 60 >= (+cfg.wait_red || 10) ? "crit" : "warn"; }
   function setH(e, html) { if (e._h !== html) { e._h = html; e.innerHTML = html; } }
-  function panels(st, left, right, panel, bodyOf) {
-    S = st; cfg = (st.ui && st.ui.garage) || {};
-    var now = Date.now() / 1000, ag = agentsNow(), f = st.fuel || null, repos = st.git || [];
-    // agents: who works on the car
+  // the agents panel, shared with the canopy (canopy.js): where = "in the bay" / "in the grove"
+  function agentsPanel(st, panel, bodyOf, conf, where, quiet) {
+    S = st; cfg = conf || {};
+    var now = Date.now() / 1000, ag = agentsNow();
     var nWait = ag.filter(function (a) { return a.state === "waiting"; }).length, nFail = ag.filter(function (a) { return a.state === "failed"; }).length;
-    var pa = panel("g-agents", "agents · " + (ag.length ? ag.length + " in the bay" : "none"), "");
+    var pa = panel("g-agents", "agents · " + (ag.length ? ag.length + " " + where : "none"), "");
     pa.classList.toggle("warn", nWait > 0 && !nFail); pa.classList.toggle("crit", nFail > 0);
     var rows = ag.slice(0, 5).map(function (a) {
       var nm = split(a.name), c = a.state === "waiting" ? waitCls(a) : a.state === "failed" ? "crit" : a.state === "working" || a.state === "done" ? "ok" : "";
@@ -206,9 +206,14 @@
         (nm.project && !share ? "<em>" + esc(nm.project) + "</em>" : "") + "<span>" + esc(sub) + "</span></div>";
     });
     if (ag.length > 5) rows.push('<div class="g-arow"><span>+ ' + (ag.length - 5) + " more</span></div>");
-    if (!ag.length) rows.push('<div class="g-arow"><span>the bay is quiet · omarchy-pulse hook claude</span></div>');
+    if (!ag.length) rows.push('<div class="g-arow"><span>' + quiet + ' · omarchy-pulse hook claude</span></div>');
     setH(bodyOf(pa), rows.join(""));
-    left.unshift(pa);
+    return pa;
+  }
+  function panels(st, left, right, panel, bodyOf) {
+    S = st; cfg = (st.ui && st.ui.garage) || {};
+    var now = Date.now() / 1000, ag = agentsNow(), f = st.fuel || null, repos = st.git || [];
+    left.unshift(agentsPanel(st, panel, bodyOf, cfg, "in the bay", "the bay is quiet"));
     // fuel: the work you ship
     var fl = f ? f.level : 0, msg = !f ? "reading your repos" : fl >= 0.75 ? "full tank · keep shipping" : fl >= 0.35 ? "cruising" : fl >= 0.15 ? "running low · push something" : "on fumes · commit to refuel";
     var linked = f && f.source === "github";
@@ -248,12 +253,6 @@
       root = document.createElement("div"); root.id = "garage";
       root.innerHTML = '<div class="g-dash panel"><div class="legend">dashboard</div><div class="body"></div></div><div class="g-toast"></div>';
       document.body.appendChild(root);
-      document.addEventListener("click", function (e) {
-        if (!document.body.classList.contains("garage")) return;
-        var fp = e.target.closest && e.target.closest(".panel.clickable[data-gh]");
-        if (fp && fp.dataset.gh) { fetch("/api/click/garage-fuel?token=" + encodeURIComponent(TOKEN), { method: "POST" }); return; }
-        if (e.target.closest && e.target.closest("[data-agent],[data-lamp]")) onClick(e); else if (card && e.target !== card) hideCard();
-      });
     }
     var sys = S.sys || {}, ag = agentsNow(), repos = S.git || [], th = { cpu: +cfg.cpu || 85, gpu: +cfg.gpu || 90, ram: +cfg.ram || 85, vram: +cfg.vram || 90, disk: +cfg.disk || 90 };
     var nWork = ag.filter(function (a) { return a.state === "working"; }).length, nWait = ag.filter(function (a) { return a.state === "waiting"; }).length;
@@ -351,5 +350,11 @@
   }
   function alert(level) { alertAt = performance.now(); alertCol = level === "crit" ? RED : AMBER; }
 
-  window.PulseGarage = { draw: draw, update: update, panels: panels, fx: fx, audio: audio, alert: alert, reset: function () { cache = null; } };
+  document.addEventListener("click", function (e) {   // the agents' cards, the lights, the fuel (garage and canopy)
+    if (!document.body.classList.contains("garage") && !document.body.classList.contains("canopy")) return;
+    var fp = e.target.closest && e.target.closest(".panel.clickable[data-gh]");
+    if (fp && fp.dataset.gh) { fetch("/api/click/garage-fuel?token=" + encodeURIComponent(TOKEN), { method: "POST" }); return; }
+    if (e.target.closest && e.target.closest("[data-agent],[data-lamp]")) onClick(e); else if (card && e.target !== card) hideCard();
+  });
+  (window.PulseScenes = window.PulseScenes || {}).garage = window.PulseGarage = { hd: true, fps: 15, draw: draw, update: update, panels: panels, agentsPanel: agentsPanel, fx: fx, audio: audio, alert: alert, reset: function () { cache = null; } };
 })();

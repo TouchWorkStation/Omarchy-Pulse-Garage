@@ -65,6 +65,7 @@ import hmac
 import ipaddress
 import queue
 import json
+import math
 import os
 import re
 import secrets
@@ -97,14 +98,22 @@ LEVELS = ("ok", "info", "warn", "crit")
 BUILTIN_IDS = {"sys", "net", "weather", "media", "notifications", "github"}
 HIST = 90   # points kept for sparklines
 AGENT_STATES = ("idle", "working", "waiting", "done", "failed")
-SCENES = ("sphere", "skyline", "orbit", "calm", "garage")   # [pulse] scene; `omarchy-pulse scene NAME` switches
+SCENES = ("sphere", "skyline", "orbit", "calm", "garage", "canopy")   # [pulse] scene; `omarchy-pulse scene NAME` switches
 GARAGE_DEFAULTS = {"cpu": 85, "gpu": 90, "ram": 85, "vram": 90, "disk": 90, "temp": 90, "fuel_goal": 60,
                    "wait_red": 10, "motion": "full", "colors": "garage", "dash": True, "plate": "", "github": ""}
 GARAGE_CHOICES = {"motion": ("full", "reduced", "off"), "colors": ("garage", "theme")}
 GARAGE_TEXT = ("plate", "github")
+# [canopy]: CommitCanopy, a tree that grows with your code (scene = "canopy")
+CANOPY_DEFAULTS = {"start": "planted", "pace": 400, "motion": "full", "colors": "canopy", "fireflies": True,
+                   "panel": True, "wind": True, "sky": "dusk"}
+CANOPY_CHOICES = {"start": ("planted", "history"), "motion": ("full", "reduced", "off"), "colors": ("canopy", "theme"),
+                  "sky": ("dusk", "night", "auto")}
+STAGES = ((0.12, "seedling"), (0.3, "sapling"), (0.55, "young tree"), (0.8, "mature"), (2.0, "ancient"))
 PLATE_TYPES = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp"}
 # [colors] preset = "..." (or "theme", the default: the colours of the Omarchy theme in use)
 PRESETS = {
+    "canopy": {"bg": "#07080c", "fg": "#ece7e3", "accent": "#ff3b3b", "accent2": "#d9cfc8", "ok": "#5ad08a",
+               "warn": "#ffb54a", "crit": "#ff4040", "dim": "#5d5f6b"},   # CommitCanopy: crimson leaves at dusk
     "garage": {"bg": "#08080a", "fg": "#eceef2", "accent": "#ff2a3e", "accent2": "#c4c8d0", "ok": "#3ed66e",
                "warn": "#ffb42e", "crit": "#ff3442", "dim": "#5c606a"},   # the garage scene's own: crimson and silver
     "synthwave": {"bg": "#070a12", "fg": "#c9d6f2", "accent": "#39e1ff", "accent2": "#ff3fb4", "ok": "#6ff0a8",
@@ -410,6 +419,7 @@ class Hub:
         self.fuel: dict | None = None          # the garage's fuel gauge: this week's commits, pushes and branches
         self.git_all: list = []                # every repository found, for the fuel
         self.gh_activity: dict | None = None   # your GitHub week (pushes, branches, merged PRs, releases), for the fuel
+        self.canopy_view: dict | None = None   # CommitCanopy: how far the tree has grown
         self.space: dict = {}                  # the ISS over you, the Kp index (aurora), solar flares
         self.heart: dict | None = None         # your heart rate, if you connect one (never logged)
         self.crew_code = ""
@@ -1868,7 +1878,7 @@ class Hub:
                     prev[key] = info
                     out.append({"name": name, "week": info["week"], "last": info["last"], "dirty": info["dirty"],
                                 "ci": ci, "branch": info["branch"][:24], "today": info.get("today", 0),
-                                "total": info.get("total", 0), "tags": info.get("tags", 0),
+                                "total": info.get("total", 0), "tags": info.get("tags", 0), "heads": info.get("heads", 0),
                                 "pushed": info.get("pushed", 0), "branches": info.get("branches", 0)})
                 out.sort(key=lambda r: (-r["week"], -r["last"]))
                 goal = (self.conf("garage", default={}) or {}).get("fuel_goal", GARAGE_DEFAULTS["fuel_goal"])
@@ -1876,6 +1886,7 @@ class Hub:
                     self.git_all = out
                     self.fuel = fuel_level(out, goal, self.gh_activity)   # every repository counts, not only the towers
                     self.git = out[: int(g.get("max", 8) or 8)]
+                self.canopy_tick()
             except Exception as e:   # noqa: BLE001
                 log(f"git: {e}")
             time.sleep(max(15, int(g.get("every", 60) or 60)))
@@ -2704,6 +2715,32 @@ class Hub:
                 log(f"github: {e}")
             self.sleep_or_reload(600)
 
+    def canopy_tick(self) -> None:
+        """Grow the tree from what Git and GitHub report now, and keep it: it never shrinks (canopy.json)."""
+        f = STATE_DIR / "canopy.json"
+        try:
+            st = json.loads(f.read_text())
+        except Exception:   # noqa: BLE001
+            st = {}
+        with self.lock:
+            repos, act, fuel = list(self.git_all), self.gh_activity, self.fuel
+        if not repos and not act:
+            return
+        totals = {"commits": sum(int(r.get("total") or 0) for r in repos), "heads": sum(int(r.get("heads") or 0) for r in repos),
+                  "tags": sum(int(r.get("tags") or 0) for r in repos)}
+        view, new = canopy_growth(totals, (act or {}).get("events") or [], st,
+                                  canopy_conf(self.conf("canopy", default={}) or {}), (fuel or {}).get("level", 0))
+        with self.lock:
+            self.canopy_view = view
+        if new != st:
+            try:
+                STATE_DIR.mkdir(parents=True, exist_ok=True)
+                tmp = f.with_suffix(".tmp")
+                tmp.write_text(json.dumps(new))
+                tmp.replace(f)
+            except Exception as e:   # noqa: BLE001
+                log(f"canopy: {e}")
+
     def loop_github_fuel(self) -> None:
         """The fuel's link to GitHub: your own events of the last 7 days (pushes from any machine, branches, merged
         pull requests, releases). Your login comes from `gh auth login` ([garage] github = "you" for public events
@@ -2731,6 +2768,7 @@ class Hub:
                     self.gh_activity = act
                     if self.git_all or act:
                         self.fuel = fuel_level(self.git_all, goal, act)
+                self.canopy_tick()
                 if old and act and act["last_push"] > old["last_push"] and act["last_repo"]:
                     self.add_fx("push", act["last_repo"], small=True)   # a push from any machine refuels the car
             except Exception as e:   # noqa: BLE001
@@ -2931,7 +2969,9 @@ class Hub:
                            "sphere": self.conf("pulse", "sphere", default="real"),
                            "cars": self.conf("lan", "cars", default=True) is not False,
                            "eyes": self.conf("presence", "eyes", default=True) is not False,
-                           "garage": garage_conf(self.conf("garage", default={}) or {})}}
+                           "garage": garage_conf(self.conf("garage", default={}) or {}),
+                           "canopy": canopy_conf(self.conf("canopy", default={}) or {})},
+                    "canopy": self.canopy_view}
 
     def skyline(self) -> str:
         """The real city behind the towers: "auto" follows the weather's city (not while sharing the screen)."""
@@ -2956,9 +2996,11 @@ class Hub:
         """The theme's colours, or a [colors] preset, with any single colour of [colors] on top."""
         c = self.conf("colors", default={}) or {}
         preset = str(c.get("preset", "theme"))
-        if preset == "theme" and (self.scene_override or self.conf("pulse", "scene", default="")) == "garage" and \
-                garage_conf(self.conf("garage", default={}) or {})["colors"] == "garage":
+        scene = self.scene_override or self.conf("pulse", "scene", default="")
+        if preset == "theme" and scene == "garage" and garage_conf(self.conf("garage", default={}) or {})["colors"] == "garage":
             preset = "garage"   # the garage brings its colours, unless [garage] colors = "theme" or a [colors] preset
+        if preset == "theme" and scene == "canopy" and canopy_conf(self.conf("canopy", default={}) or {})["colors"] == "canopy":
+            preset = "canopy"
         base = dict(self.theme.get("colors") or {}) if preset == "theme" or preset not in PRESETS else \
             {COLOR_KEYS[k]: v for k, v in PRESETS[preset].items()}
         for k, v in c.items():
@@ -3457,7 +3499,7 @@ def github_activity(events: list, login: str = "", now: float | None = None) -> 
     now = now or time.time()
     week, day = now - 7 * 86400, time.mktime(time.localtime(now)[:3] + (0, 0, 0, 0, 0, -1))
     out = {"login": login, "pushes": 0, "commits": 0, "branches": 0, "merged": 0, "opened": 0, "releases": 0,
-           "today": 0, "repos": [], "last_push": 0.0, "last_repo": ""}
+           "today": 0, "repos": [], "last_push": 0.0, "last_repo": "", "events": []}
     for e in events or []:
         t = iso_ts(e.get("created_at")) or 0
         if t < week:
@@ -3465,6 +3507,7 @@ def github_activity(events: list, login: str = "", now: float | None = None) -> 
         kind, pl, repo = e.get("type"), e.get("payload") or {}, (e.get("repo") or {}).get("name", "")
         if kind == "PushEvent":
             n = pl.get("distinct_size") or pl.get("size") or len(pl.get("commits") or []) or 1
+            out["events"].append([str(e.get("id") or ""), "commit", int(n)])
             out["pushes"] += 1
             out["commits"] += int(n)
             if t >= day:
@@ -3472,12 +3515,14 @@ def github_activity(events: list, login: str = "", now: float | None = None) -> 
             if t > out["last_push"]:
                 out["last_push"], out["last_repo"] = t, repo.split("/")[-1]
         elif kind == "CreateEvent" and pl.get("ref_type") == "branch":
+            out["events"].append([str(e.get("id") or ""), "branch", 1])
             out["branches"] += 1
         elif kind == "PullRequestEvent" and pl.get("action") == "closed" and (pl.get("pull_request") or {}).get("merged"):
             out["merged"] += 1
         elif kind == "PullRequestEvent" and pl.get("action") == "opened":
             out["opened"] += 1
         elif kind == "ReleaseEvent" and pl.get("action") in ("published", "released", "created"):
+            out["events"].append([str(e.get("id") or ""), "release", 1])
             out["releases"] += 1
         else:
             continue
@@ -3511,6 +3556,65 @@ def fuel_level(repos: list, goal=60, gh: dict | None = None) -> dict:
             "pushed": pushed, "branches": branches, "today": today,
             "repos": sum(1 for r in repos if r.get("week")), "allCommits": sum(int(r.get("total") or 0) for r in repos),
             "releases": sum(int(r.get("tags") or 0) for r in repos)}
+
+
+def canopy_conf(c: dict) -> dict:
+    """[canopy] with its defaults."""
+    out = dict(CANOPY_DEFAULTS)
+    for k, v in (c or {}).items():
+        if k not in out:
+            continue
+        d = out[k]
+        if isinstance(d, bool):
+            out[k] = bool(v)
+        elif isinstance(d, (int, float)):
+            try:
+                out[k] = max(10.0, float(v))
+            except (TypeError, ValueError):
+                pass
+        else:
+            out[k] = str(v) if str(v) in CANOPY_CHOICES.get(k, ()) else out[k]
+    return out
+
+
+def canopy_growth(totals: dict, events: list, state: dict, conf: dict, vigor: float = 0.0, now: float | None = None):
+    """CommitCanopy's tree. Planted the first time it runs; from then on every commit adds leaves, every branch a limb,
+    every release blooms. Your history before planting gives it a head start (a young tree, not a grown one), unless
+    [canopy] start = "history". It never shrinks: the highest count ever seen is kept, and GitHub events (pushes from
+    other machines) are counted once each. Returns what the scene draws and the state to save."""
+    now = now or time.time()
+    st = json.loads(json.dumps(state or {}))
+    if not st.get("planted"):
+        st = {"planted": now, "base": dict(totals), "max": dict(totals), "gh": {"commit": 0, "branch": 0, "release": 0},
+              "seen": []}
+    for k in ("commits", "heads", "tags"):
+        st["max"][k] = max(int(st["max"].get(k, 0)), int(totals.get(k, 0)))
+    seen = set(st.get("seen") or [])
+    for eid, kind, n in events or []:
+        if eid and eid not in seen and kind in st["gh"]:
+            st["gh"][kind] += int(n)
+            seen.add(eid)
+            st["seen"] = (st.get("seen") or []) + [eid]
+    st["seen"] = (st.get("seen") or [])[-500:]
+    base, mx, gh = st["base"], st["max"], st["gh"]
+    grown = {"leaves": max(mx["commits"] - base.get("commits", 0), gh["commit"]),
+             "limbs": max(mx["heads"] - base.get("heads", 0), gh["branch"]),
+             "blooms": max(mx["tags"] - base.get("tags", 0), gh["release"])}
+    pace = max(10.0, float(conf.get("pace", 400)))
+    pts = grown["leaves"] + 6 * grown["limbs"] + 15 * grown["blooms"]
+    past = base.get("commits", 0) + 6 * base.get("heads", 0) + 15 * base.get("tags", 0)
+    if conf.get("start") == "history":
+        growth = 1 - math.exp(-(pts + past) / pace)
+    else:
+        head = 0.35 * (1 - math.exp(-past / 1500))   # your history: a head start, never a full tree on day one
+        growth = head + (1 - head) * (1 - math.exp(-pts / pace))
+    growth = round(min(1.0, growth), 4)
+    stage = next(name for lim, name in STAGES if growth < lim)
+    view = {"growth": growth, "stage": stage, "planted": st["planted"], "days": int((now - st["planted"]) // 86400),
+            "leaves": max(mx["commits"], base.get("commits", 0) + gh["commit"]), "limbs": mx["heads"] + gh["branch"],
+            "blooms": mx["tags"] + gh["release"], "grown": grown, "vigor": round(float(vigor or 0), 3),
+            "seed": int(st["planted"]) % 100000}
+    return view, st
 
 
 def garage_conf(c: dict) -> dict:
@@ -3587,7 +3691,8 @@ def git_info(path) -> dict | None:
     last = g("log", "-1", "--format=%ct")
     total = g("rev-list", "--count", "HEAD")
     tags = len(g("tag", "--list").split())
-    return {"total": int(total) if total.isdigit() else 0, "tags": tags,"head": head, "up": g("rev-parse", "@{u}"), "branch": g("rev-parse", "--abbrev-ref", "HEAD"),
+    heads = len(g("for-each-ref", "--format=x", "refs/heads").split())
+    return {"total": int(total) if total.isdigit() else 0, "tags": tags, "heads": heads,"head": head, "up": g("rev-parse", "@{u}"), "branch": g("rev-parse", "--abbrev-ref", "HEAD"),
             "week": int(week) if week.isdigit() else 0, "last": int(last) if last.isdigit() else 0,
             "today": int(today) if today.isdigit() else 0, "pushed": int(pushed) if pushed.isdigit() else 0,
             "branches": branches,
@@ -5010,6 +5115,10 @@ def from_demo(hub: Hub) -> None:
                        "releases": 1, "today": 9, "repos": ["you/omarchytv"], "last_push": time.time() - 600,
                        "last_repo": "omarchytv"}
     hub.fuel = fuel_level(hub.git, float(os.environ.get("PULSE_DEMO_FUEL_GOAL") or 300), hub.gh_activity)
+    g = float(os.environ.get("PULSE_DEMO_GROWTH") or 0.85)   # the demo's tree: how grown (0..1)
+    hub.canopy_view = {"growth": g, "stage": next(n for lim, n in STAGES if g < lim), "planted": time.time() - 84 * 86400,
+                       "days": 84, "leaves": 3062, "limbs": 41, "blooms": 27, "vigor": hub.fuel["level"],
+                       "grown": {"leaves": 612, "limbs": 14, "blooms": 6}, "seed": 4242}
     now0 = time.time()
     t_train = float(os.environ.get("PULSE_DEMO_TRAIN_AT") or now0 + float(os.environ.get("PULSE_DEMO_TRAIN", "2400")))
     hub.calendar = [{"title": "standup", "start": t_train, "end": t_train + 900},
