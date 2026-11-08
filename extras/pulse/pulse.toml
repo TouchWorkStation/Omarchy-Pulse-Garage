@@ -7,7 +7,7 @@
 city = ""                        # weather: "Milan", "Berlin"... (or latitude = 45.46 / longitude = 9.19)
 units = "metric"                 # or "imperial"
 clock = "24h"                    # or "12h"
-scene = "sphere"                 # sphere (the LED sphere) | skyline | orbit | calm | garage (or: omarchy-pulse scene garage)
+scene = "garage"                 # sphere | skyline | orbit | calm | garage (omarchy-pulse scene NAME)
 skyline = "auto"                 # the real city behind the towers: "auto" (the weather's city), "off", or one of
                                  # 90+ cities: rome, milan, alessandria, new-york, tokyo, paris... (docs/GUIDE.md 22)
 sphere = "real"                  # the sphere's look: "real" (one continuous image) | "led" (thousands of separate lights)
