@@ -75,8 +75,8 @@ max = 8
 plate = ""                       # the picture of your car (jpg/png/webp, stays on your PC); a .json beside it says
                                  # where its headlights, floor and window are
 colors = "garage"                # crimson and silver; "theme" keeps your Omarchy theme ([colors] preset wins anyway)
-github = ""                      # the fuel follows your GitHub too: "" = the account of `gh auth login`, "you" = public
-                                 # events of that user only, "off" = only the repositories on this PC
+github = ""                      # the fuel follows GitHub too: "" = every account you logged in to with gh (run
+                                 # `gh auth login` once per account), or names: ["you", "you-at-work"]; "off" = local only
 fuel_goal = 60                   # a full tank, in points a week (git: 1 a commit, +1 pushed, 3 a branch; with GitHub:
                                  # 1 a commit, 2 a push, 3 a branch, 5 a merged pull request, 10 a release)
 cpu = 85                         # % for the dashboard lights (they go off again 5% below)
@@ -89,6 +89,7 @@ dash = true                      # the dashboard lights under the car
 motion = "full"                  # "full" | "reduced" (fewer frames, no breathing) | "off" (a still picture)
 
 [canopy]                         # scene = "canopy": CommitCanopy, a red maple that grows with your code
+github = ""                      # the GitHub accounts that grow the tree: "" = all of gh's, or ["you", "you-at-work"]
 start = "planted"                # "planted": it grows from today (your history is a head start) | "history": all of it
 pace = 400                       # how fast it grows: points for a big step (1 a commit, 6 a branch, 15 a release)
 sky = "dusk"                     # "dusk" (the setting sun) | "night" | "auto" (night from 20:00 to 6:00)

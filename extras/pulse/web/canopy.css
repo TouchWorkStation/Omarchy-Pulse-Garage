@@ -22,3 +22,33 @@ body.canopy #clock .time { text-shadow: 0 0 2.4rem rgba(var(--accent-rgb), .4), 
   color: var(--ok); text-shadow: 0 0 1.2rem rgba(var(--ok-rgb), .6); opacity: 0; transition: opacity .6s, transform .6s; white-space: nowrap; }
 .c-toast.on { opacity: 1; transform: translate(-50%, -1rem); }
 body:not(.canopy) .c-toast { display: none; }
+
+/* ---- soft panels for the canopy and the garage: frosted glass, a hairline border, the title inside. Quiet enough for
+   Omarchy, so the scene stays the picture; amber and red still show when something needs you. */
+body.canopy .panel, body.garage .panel {
+  border: 1px solid rgba(var(--fg-rgb), .075); border-radius: .9rem; padding: 1rem 1.2rem 1.05rem;
+  background: linear-gradient(180deg, rgba(var(--bg-rgb), .52), rgba(var(--bg-rgb), .38));
+  -webkit-backdrop-filter: blur(18px) saturate(1.15); backdrop-filter: blur(18px) saturate(1.15);
+  box-shadow: 0 1.4rem 3.2rem rgba(0,0,0,.32), inset 0 1px 0 rgba(255,255,255,.035); }
+body.canopy .panel::before, body.canopy .panel::after, body.garage .panel::before, body.garage .panel::after { display: none; }
+body.canopy .legend, body.garage .legend { position: static; display: block; padding: 0; margin: 0 0 .75rem; background: none; max-width: none;
+  font-size: .82rem; letter-spacing: .16em; color: rgba(var(--fg-rgb), .5); }
+body.canopy .legend .ic, body.garage .legend .ic { color: var(--accent); }
+body.canopy .corner, body.garage .corner { top: 1rem; right: 1.1rem; background: none; padding: 0; color: rgba(var(--fg-rgb), .3); }
+body.canopy .panel.warn, body.garage .panel.warn { border-color: rgba(var(--warn-rgb), .3); box-shadow: 0 1.4rem 3.2rem rgba(0,0,0,.32), 0 0 2.2rem rgba(var(--warn-rgb), .07); }
+body.canopy .panel.warn .legend, body.garage .panel.warn .legend { color: rgba(var(--warn-rgb), .85); }
+body.canopy .panel.crit, body.garage .panel.crit { border-color: rgba(var(--crit-rgb), .38); box-shadow: 0 1.4rem 3.2rem rgba(0,0,0,.32), 0 0 2.4rem rgba(var(--crit-rgb), .1); }
+body.canopy .panel.crit .legend, body.garage .panel.crit .legend { color: rgba(var(--crit-rgb), .9); }
+body.canopy .panel.clickable:hover, body.garage .panel.clickable:hover { border-color: rgba(var(--fg-rgb), .16); }
+body.canopy .g-arow, body.garage .g-arow { border-radius: .45rem; }
+body.garage .g-dash { padding: .8rem .9rem .6rem; }
+body.garage .g-dash .legend { margin-bottom: .3rem; }
+
+/* the GitHub accounts that feed the tree and the fuel */
+.c-accts { margin-top: .7rem; padding-top: .6rem; border-top: 1px solid rgba(var(--fg-rgb), .06); }
+.c-acct { display: flex; justify-content: space-between; gap: 1rem; font-size: .88rem; line-height: 1.7; color: rgba(var(--fg-rgb), .55); }
+.c-acct .at { color: rgba(var(--fg-rgb), .85); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* thin, smooth meters instead of blocks */
+body.canopy .seg, body.garage .seg { height: .3rem; border-radius: 1rem; background: rgba(var(--fg-rgb), .08); overflow: hidden; }
+body.canopy .seg i, body.garage .seg i { border-radius: 1rem; box-shadow: none;
+  background: linear-gradient(90deg, rgba(var(--accent-rgb), .55), var(--c, var(--accent))); }

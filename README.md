@@ -225,7 +225,9 @@ point `plate` in `[garage]` anywhere else. Without one, the bay is dark and empt
 
 A red maple on a rock in a lake at dusk, that grows with your code. It is planted the first time you open it, then
 **every commit adds leaves, every branch a limb, every release makes it bloom**, from the repositories on your PC and
-from GitHub (pushes from any machine, through `gh auth login`). It never shrinks: a deleted branch or a moved
+from GitHub (pushes from any machine, through `gh auth login`). **Several accounts?** Log in to each one
+(`gh auth login` again, it keeps them all): their weeks add up, each is listed in the canopy panel, and an event two
+accounts both see counts once. Or name them: `github = ["you", "you-at-work"]` in `[canopy]`. It never shrinks: a deleted branch or a moved
 repository takes nothing back. Your history gives it a head start, a young tree rather than a seed
 (`start = "history"` grows it from all of it at once). From a seedling to a sapling, a young tree, mature, ancient.
 

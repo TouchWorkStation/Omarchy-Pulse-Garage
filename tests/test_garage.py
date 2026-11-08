@@ -244,6 +244,50 @@ class VramTests(unittest.TestCase):
             self.assertIsNone(pulse.read_vram())
 
 
+class GitHubAccountsTests(unittest.TestCase):
+    STATUS = '''github.com
+  \u2713 Logged in to github.com account TouchWorkStation (keyring)
+  - Active account: true
+  - Git operations protocol: https
+  \u2713 Logged in to github.com account chris-at-work (keyring)
+  - Active account: false
+'''
+
+    def test_every_gh_account_is_found(self):
+        r = subprocess.CompletedProcess([], 0, stdout=self.STATUS, stderr='')
+        with mock.patch.object(pulse.shutil, 'which', return_value='/usr/bin/gh'), mock.patch.object(pulse.subprocess, 'run', return_value=r):
+            self.assertEqual(pulse.gh_accounts(), ['TouchWorkStation', 'chris-at-work'])
+
+    def act(self, login, commits, events):
+        return {'login': login, 'pushes': 1, 'commits': commits, 'branches': 1, 'merged': 0, 'opened': 0, 'releases': 0,
+                'today': 0, 'repos': [login + '/x'], 'last_push': commits, 'last_repo': login, 'events': events, }
+
+    def test_two_accounts_add_up_and_share_events_once(self):
+        m = pulse.merge_activity([self.act('a', 10, [['e1', 'commit', 10]]), self.act('b', 5, [['e1', 'commit', 10], ['e2', 'commit', 5]])])
+        self.assertEqual((m['commits'], m['pushes'], m['branches']), (15, 2, 2))
+        self.assertEqual([e[0] for e in m['events']], ['e1', 'e2'])     # an event seen by both accounts counts once
+        self.assertEqual([a['login'] for a in m['accounts']], ['a', 'b'])
+        self.assertEqual(m['last_repo'], 'a')
+        self.assertIsNone(pulse.merge_activity([]))
+
+    def test_which_accounts(self):
+        hub = pulse.Hub()
+        conf = {'canopy': {'github': ['me', 'me-work']}, 'garage': {'github': 'me, other'}}
+        with mock.patch.object(hub, 'conf', side_effect=lambda sec, default=None: conf.get(sec, default)):
+            self.assertEqual(hub.github_wanted(), ['me', 'me-work', 'other'])
+        conf = {'canopy': {'github': 'off'}}
+        with mock.patch.object(hub, 'conf', side_effect=lambda sec, default=None: conf.get(sec, default)):
+            self.assertIsNone(hub.github_wanted())
+        conf = {}
+        with mock.patch.object(hub, 'conf', side_effect=lambda sec, default=None: conf.get(sec, default)), \
+                mock.patch.object(pulse, 'gh_accounts', return_value=['a', 'b']):
+            self.assertEqual(hub.github_wanted(), ['a', 'b'])          # nothing set: every account gh knows
+
+    def test_the_canopy_shows_each_account(self):
+        v = pulse.canopy_accounts({'growth': 0.5}, pulse.merge_activity([self.act('a', 3, []), self.act('b', 4, [])]))
+        self.assertEqual([a['login'] for a in v['accounts']], ['a', 'b'])
+
+
 class CanopyTests(unittest.TestCase):
     CONF = dict(pulse.CANOPY_DEFAULTS)
 

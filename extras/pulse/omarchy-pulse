@@ -105,7 +105,7 @@ GARAGE_CHOICES = {"motion": ("full", "reduced", "off"), "colors": ("garage", "th
 GARAGE_TEXT = ("plate", "github")
 # [canopy]: CommitCanopy, a tree that grows with your code (scene = "canopy")
 CANOPY_DEFAULTS = {"start": "planted", "pace": 400, "motion": "full", "colors": "canopy", "fireflies": True,
-                   "panel": True, "wind": True, "sky": "dusk"}
+                   "panel": True, "wind": True, "sky": "dusk", "github": ""}
 CANOPY_CHOICES = {"start": ("planted", "history"), "motion": ("full", "reduced", "off"), "colors": ("canopy", "theme"),
                   "sky": ("dusk", "night", "auto")}
 STAGES = ((0.12, "seedling"), (0.3, "sapling"), (0.55, "young tree"), (0.8, "mature"), (2.0, "ancient"))
@@ -1516,7 +1516,8 @@ class Hub:
                 return False
             return True
         if wid == "garage-fuel":   # the fuel panel, linked to GitHub: your profile in the browser
-            login = str((self.gh_activity or {}).get("login") or "")
+            act = self.gh_activity or {}
+            login = str((act.get("logins") or [act.get("login") or ""])[0])
             if not re.match(r"^[A-Za-z0-9-]{1,39}$", login) or not shutil.which("xdg-open"):
                 return False
             subprocess.Popen(["xdg-open", f"https://github.com/{login}"], stdout=subprocess.DEVNULL,
@@ -2731,7 +2732,7 @@ class Hub:
         view, new = canopy_growth(totals, (act or {}).get("events") or [], st,
                                   canopy_conf(self.conf("canopy", default={}) or {}), (fuel or {}).get("level", 0))
         with self.lock:
-            self.canopy_view = view
+            self.canopy_view = canopy_accounts(view, act)
         if new != st:
             try:
                 STATE_DIR.mkdir(parents=True, exist_ok=True)
@@ -2741,27 +2742,37 @@ class Hub:
             except Exception as e:   # noqa: BLE001
                 log(f"canopy: {e}")
 
+    def github_wanted(self) -> list | None:
+        """Which GitHub accounts feed the fuel and the tree: `github` in [canopy] or [garage] (one name, a list, or
+        "a, b"), else every account you are logged in to with gh (`gh auth login` once per account). None = "off"."""
+        raw = []
+        for sec in ("canopy", "garage"):
+            v = (self.conf(sec, default={}) or {}).get("github")
+            raw += v if isinstance(v, list) else re.split(r"[,\s]+", str(v or ""))
+        names = [str(x).strip().lstrip("@") for x in raw if str(x).strip()]
+        if "off" in names:
+            return None
+        names = [n for n in dict.fromkeys(names) if re.match(r"^[A-Za-z0-9-]{1,39}$", n)]
+        return names or gh_accounts()
+
     def loop_github_fuel(self) -> None:
-        """The fuel's link to GitHub: your own events of the last 7 days (pushes from any machine, branches, merged
-        pull requests, releases). Your login comes from `gh auth login` ([garage] github = "you" for public events
-        only, "off" to keep the fuel local). Every 5 minutes: GitHub keeps 300 events, more than enough for a week."""
+        """The fuel's and the canopy's link to GitHub: the events of the last 7 days of each of your accounts (pushes
+        from any machine, branches, merged pull requests, releases), added together. With gh logged in to an account
+        its private repositories count too; any other name counts its public events. Every 5 minutes."""
         while True:
             try:
-                want = str(garage_conf(self.conf("garage", default={}) or {}).get("github") or "").strip()
-                login = "" if want == "off" else want
-                if want != "off" and not login and shutil.which("gh"):
-                    login = str((gh_api("user", auth_only=True) or {}).get("login") or "")
-                act = None
-                if login:
+                acts = []
+                for login in (self.github_wanted() or [])[:6]:
                     events = []
                     for page in (1, 2, 3):
-                        got = gh_api(f"users/{login}/events?per_page=100&page={page}") or []
+                        got = gh_api_as(f"users/{login}/events?per_page=100&page={page}", login) or []
                         if not isinstance(got, list):
                             break
                         events += got
                         if len(got) < 100 or (iso_ts(got[-1].get("created_at")) or 0) < time.time() - 7 * 86400:
                             break
-                    act = github_activity(events, login)
+                    acts.append(github_activity(events, login))
+                act = merge_activity(acts)
                 goal = (self.conf("garage", default={}) or {}).get("fuel_goal", GARAGE_DEFAULTS["fuel_goal"])
                 with self.lock:
                     old = self.gh_activity
@@ -2770,7 +2781,7 @@ class Hub:
                         self.fuel = fuel_level(self.git_all, goal, act)
                 self.canopy_tick()
                 if old and act and act["last_push"] > old["last_push"] and act["last_repo"]:
-                    self.add_fx("push", act["last_repo"], small=True)   # a push from any machine refuels the car
+                    self.add_fx("push", act["last_repo"], small=True)   # a push from any machine, any account
             except Exception as e:   # noqa: BLE001
                 log(f"github fuel: {e}")
             self.sleep_or_reload(300)
@@ -3494,6 +3505,56 @@ def speak(text: str, v: dict) -> None:
                      "install piper-tts and a voice in ~/.local/share/piper/, or espeak-ng"))
 
 
+def gh_accounts() -> list:
+    """Every github.com account gh is logged in to (gh auth status lists them all)."""
+    if not shutil.which("gh"):
+        return []
+    try:
+        r = subprocess.run(["gh", "auth", "status", "--hostname", "github.com"], capture_output=True, text=True, timeout=10)
+    except Exception:   # noqa: BLE001
+        return []
+    return list(dict.fromkeys(re.findall(r"Logged in to github\.com account ([A-Za-z0-9-]+)", r.stdout + r.stderr)))
+
+
+def gh_api_as(path: str, login: str):
+    """gh api as one of your accounts (its own token, so its private events count); public API otherwise."""
+    if shutil.which("gh"):
+        try:
+            t = subprocess.run(["gh", "auth", "token", "--hostname", "github.com", "--user", login],
+                               capture_output=True, text=True, timeout=10)
+            if t.returncode == 0 and t.stdout.strip():
+                r = subprocess.run(["gh", "api", path], capture_output=True, timeout=20,
+                                   env={**os.environ, "GH_TOKEN": t.stdout.strip()})
+                if r.returncode == 0:
+                    return json.loads(r.stdout)
+        except Exception:   # noqa: BLE001
+            pass
+    return gh_api(path)
+
+
+def merge_activity(acts: list) -> dict | None:
+    """Several accounts, one week: counts added, every event once, the latest push wins. Each account kept for the panel."""
+    acts = [a for a in acts if a]
+    if not acts:
+        return None
+    out = {"login": " + ".join(a["login"] for a in acts), "logins": [a["login"] for a in acts],
+           "pushes": 0, "commits": 0, "branches": 0, "merged": 0, "opened": 0, "releases": 0, "today": 0,
+           "repos": [], "last_push": 0.0, "last_repo": "", "events": [], "accounts": []}
+    seen = set()
+    for a in acts:
+        for k in ("pushes", "commits", "branches", "merged", "opened", "releases", "today"):
+            out[k] += a[k]
+        out["repos"] += [r for r in a["repos"] if r not in out["repos"]]
+        if a["last_push"] > out["last_push"]:
+            out["last_push"], out["last_repo"] = a["last_push"], a["last_repo"]
+        for e in a["events"]:
+            if e[0] not in seen:
+                seen.add(e[0])
+                out["events"].append(e)
+        out["accounts"].append({k: a[k] for k in ("login", "commits", "pushes", "branches", "merged", "releases")})
+    return out
+
+
 def github_activity(events: list, login: str = "", now: float | None = None) -> dict:
     """Your GitHub week, from the events API: pushes (and their commits), new branches, merged pull requests, releases."""
     now = now or time.time()
@@ -3548,7 +3609,7 @@ def fuel_level(repos: list, goal=60, gh: dict | None = None) -> dict:
     if gh:
         commits, branches, today = max(commits, gh["commits"]), max(branches, gh["branches"]), max(today, gh["today"])
         extra = {"source": "github", "login": gh["login"], "pushes": gh["pushes"], "merged": gh["merged"],
-                 "shipped": gh["releases"]}
+                 "shipped": gh["releases"], "accounts": gh.get("accounts") or [], "logins": gh.get("logins") or [gh["login"]]}
         points = commits + 2 * gh["pushes"] + 3 * branches + 5 * gh["merged"] + 10 * gh["releases"]
     else:
         points = commits + pushed + 3 * branches
@@ -3565,7 +3626,9 @@ def canopy_conf(c: dict) -> dict:
         if k not in out:
             continue
         d = out[k]
-        if isinstance(d, bool):
+        if k == "github":
+            out[k] = ", ".join(map(str, v)) if isinstance(v, list) else str(v)[:200]
+        elif isinstance(d, bool):
             out[k] = bool(v)
         elif isinstance(d, (int, float)):
             try:
@@ -3617,6 +3680,13 @@ def canopy_growth(totals: dict, events: list, state: dict, conf: dict, vigor: fl
     return view, st
 
 
+def canopy_accounts(view: dict | None, act: dict | None) -> dict | None:
+    """The canopy's view with the GitHub accounts that feed it (for the panel)."""
+    if view is None:
+        return None
+    return {**view, "accounts": (act or {}).get("accounts") or []}
+
+
 def garage_conf(c: dict) -> dict:
     """[garage] with its defaults: the warning thresholds (%) and what the garage shows."""
     out = dict(GARAGE_DEFAULTS)
@@ -3631,7 +3701,7 @@ def garage_conf(c: dict) -> dict:
             except (TypeError, ValueError):
                 pass
         elif k in GARAGE_TEXT:
-            out[k] = str(v)[:80]
+            out[k] = ", ".join(map(str, v)) if isinstance(v, list) else str(v)[:80]
         else:
             out[k] = str(v) if str(v) in GARAGE_CHOICES.get(k, ()) else out[k]
     return out
@@ -5111,14 +5181,17 @@ def from_demo(hub: Hub) -> None:
         r.update(pushed=pu, branches=br, today=td)
     for r, (tot, tg) in zip(hub.git, ((1312, 14), (980, 9), (420, 3), (260, 0), (90, 1))):
         r.update(total=tot, tags=tg)
-    hub.gh_activity = {"login": "you", "pushes": 21, "commits": 118, "branches": 6, "merged": 4, "opened": 5,
-                       "releases": 1, "today": 9, "repos": ["you/omarchytv"], "last_push": time.time() - 600,
-                       "last_repo": "omarchytv"}
+    hub.gh_activity = merge_activity([
+        {"login": "you", "pushes": 15, "commits": 84, "branches": 4, "merged": 3, "opened": 4, "releases": 1, "today": 6,
+         "repos": ["you/omarchytv"], "last_push": time.time() - 600, "last_repo": "omarchytv", "events": []},
+        {"login": "you-at-work", "pushes": 6, "commits": 34, "branches": 2, "merged": 1, "opened": 1, "releases": 0,
+         "today": 3, "repos": ["acme/api"], "last_push": time.time() - 3600, "last_repo": "api", "events": []}])
     hub.fuel = fuel_level(hub.git, float(os.environ.get("PULSE_DEMO_FUEL_GOAL") or 300), hub.gh_activity)
     g = float(os.environ.get("PULSE_DEMO_GROWTH") or 0.85)   # the demo's tree: how grown (0..1)
     hub.canopy_view = {"growth": g, "stage": next(n for lim, n in STAGES if g < lim), "planted": time.time() - 84 * 86400,
                        "days": 84, "leaves": 3062, "limbs": 41, "blooms": 27, "vigor": hub.fuel["level"],
-                       "grown": {"leaves": 612, "limbs": 14, "blooms": 6}, "seed": 4242}
+                       "grown": {"leaves": 612, "limbs": 14, "blooms": 6}, "seed": 4242,
+                       "accounts": hub.gh_activity["accounts"]}
     now0 = time.time()
     t_train = float(os.environ.get("PULSE_DEMO_TRAIN_AT") or now0 + float(os.environ.get("PULSE_DEMO_TRAIN", "2400")))
     hub.calendar = [{"title": "standup", "start": t_train, "end": t_train + 900},

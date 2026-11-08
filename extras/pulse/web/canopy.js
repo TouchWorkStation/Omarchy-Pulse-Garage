@@ -496,7 +496,12 @@
       '<div class="c-bar"><i style="width:' + (v.growth * 100).toFixed(1) + '%"></i></div>' +
       rows.map(function (r) { return '<div class="c-row"><span class="k">' + r[0] + '</span><span class="n">' + Number(r[1] || 0).toLocaleString("en-US") +
         '</span><span class="s">' + r[2] + (r[3] ? ' · <b>+' + r[3] + "</b>" : "") + "</span></div>"; }).join("") +
-      '<div class="c-vig">this week · <b class="' + (v.vigor < 0.15 ? "crit" : v.vigor < 0.35 ? "warn" : "ok") + '">' + vig + "</b></div>");
+      '<div class="c-vig">this week · <b class="' + (v.vigor < 0.15 ? "crit" : v.vigor < 0.35 ? "warn" : "ok") + '">' + vig + "</b></div>" +
+      // every GitHub account that feeds the tree, with its week
+      ((v.accounts || []).length ? '<div class="c-accts">' + v.accounts.map(function (a, i) {
+        return '<div class="c-acct"><span class="at">' + esc(share ? "account " + (i + 1) : "@" + a.login) + '</span><span>' + a.commits + " commits · " + a.pushes + " pushes" +
+          (a.releases ? " · " + a.releases + " rel" : "") + "</span></div>";
+      }).join("") + "</div>" : ""));
     right.unshift(pc);
   }
 

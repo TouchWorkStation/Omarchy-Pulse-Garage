@@ -232,7 +232,10 @@
     setH(bf.querySelector(".g-fm"), f ? fr.map(function (r) {
       var w = r[2] ? Math.min(100, r[1] * r[2] / Math.max(1, f.goal) * 100) : Math.min(100, r[1] / Math.max(1, f.goal) * 100);
       return '<div class="meter"><span class="k">' + r[0] + '</span><div class="seg"><i style="width:' + w.toFixed(0) + '%"></i></div><span class="v">' + r[1] + "</span></div>";
-    }).join("") + '<div class="g-tot">' + thousands(f.allCommits) + " commits · " + f.releases + " releases · " + f.repos + " active projects</div>" : "");
+    }).join("") + '<div class="g-tot">' + thousands(f.allCommits) + " commits · " + f.releases + " releases · " + f.repos + " active projects</div>" +
+      ((f.accounts || []).length > 0 ? '<div class="c-accts">' + f.accounts.map(function (a, i) {
+        return '<div class="c-acct"><span class="at">' + esc(share ? "account " + (i + 1) : "@" + a.login) + "</span><span>" + a.commits + " commits · " + a.pushes + " pushes</span></div>";
+      }).join("") + "</div>" : "") : "");
     // builds: the CI of your repositories
     var withCi = repos.filter(function (r) { return r.ci; });
     if (withCi.length) {
