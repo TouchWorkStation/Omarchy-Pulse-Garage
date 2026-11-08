@@ -49,7 +49,7 @@
   var RANK = { failed: 0, waiting: 1, working: 2, done: 3, idle: 4 };
 
   var S = null, cfg = {}, share = false, lamps = {}, seen = {}, root = null, card = null, cardFor = null;
-  var plate = null, plateKey = "", anchors = {}, cache = null, cacheKey = "";
+  var plate = null, plateKey = null, anchors = {}, cache = null, cacheKey = "";
   var beam = 0, alertAt = -1e9, alertCol = null, bass = 0, audioAt = 0, drops = [];
   var toastT = null;
 
