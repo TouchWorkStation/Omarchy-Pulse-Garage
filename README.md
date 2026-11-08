@@ -202,9 +202,11 @@ Everything Pulse shows (the clock, system and network, your sources, the AI brie
 alerts), around a car in a workshop instead of the city. The car is your picture (`plate` in `[garage]`), and Pulse
 lights it with your data. The garage adds:
 
-- **fuel**: the work you ship. A point for every commit of the last 7 days, one more when it is pushed, three for
-  every branch you worked on. Old work leaves the window, so the tank drains if you stop. A push flashes the headlights
-  and floats up as `+ REFUEL`. A full tank is `fuel_goal`.
+- **fuel**: the work you ship in the last 7 days, so the tank drains if you stop. Linked to GitHub (it uses
+  `gh auth login`, nothing else to set), it fills from everything you push from any machine: a point a commit, 2 a
+  push, 3 a new branch, 5 a merged pull request, 10 a release. Without GitHub, from the repositories on this PC. A
+  push (from anywhere) flashes the headlights and floats up as `+ REFUEL`; click the gauge for your GitHub profile.
+  A full tank is `fuel_goal`.
 - **agents**: who works on the car. One waiting for you turns on the **hazard lights** (amber, red after `wait_red`
   minutes); a failed one lights the engine bay red; one that finishes flashes the high beams. Click one for its card.
 - **builds**: the CI of your repositories.

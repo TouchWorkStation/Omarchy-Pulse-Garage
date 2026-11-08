@@ -518,6 +518,7 @@
     function wantScale() {
       if (Q.get("q")) return +Q.get("q");
       if (quality === "half") return 0.5;
+      if (kind === "garage") return 1;   // a photo: always at full resolution (it is one cached picture, cheap to draw)
       if (quality === "full") return 1;
       return qAuto;
     }
@@ -2470,6 +2471,7 @@
         var bigScreen = innerWidth * innerHeight * Math.pow(window.devicePixelRatio || 1, 2) > 2560 * 1440 * 1.05;
         var nq = ui.quality || "auto", nAuto = (onBat || bigScreen || (qSlowAt && performance.now() - qSlowAt < 600000)) ? 0.5 : 1;
         if (nq !== quality || (nq === "auto" && nAuto !== qAuto)) { quality = nq; qAuto = nAuto; resize(); }   // 10 minutes after slow frames, try sharp again
+        else if (wantScale() !== SC) resize();   // into or out of the garage
         var ph = sunOn ? sunPhase(w) : "night";
         city = window.PULSE_CITY != null ? window.PULSE_CITY : Q.get("city") || ui.skyline || "";
         if (ph + kind + city !== phaseKey) { phaseKey = ph + kind + city; phase = ph; paintStatic(); }
@@ -2486,7 +2488,8 @@
         var gcfg = ui.garage || {};
         if (kind === "garage") {
           if (window.PulseGarage) window.PulseGarage.update(st, m);
-          if (gcfg.motion === "reduced") fps = Math.min(fps, 10);
+          fps = Math.min(fps, 15);   // a still picture with slow lights: 15 frames are plenty, even at 4K
+          if (gcfg.motion === "reduced") fps = Math.min(fps, 8);
           if (gcfg.motion === "off") fps = Math.min(fps, 1);
         }
         document.body.classList.toggle("garage", kind === "garage");

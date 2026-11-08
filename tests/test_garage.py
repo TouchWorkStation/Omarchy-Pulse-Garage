@@ -36,6 +36,53 @@ class FuelTests(unittest.TestCase):
         self.assertEqual(pulse.fuel_level([{'week': 30}], goal=0)['goal'], 1)
 
 
+class GitHubFuelTests(unittest.TestCase):
+    NOW = 1_800_000_000.0
+
+    def ev(self, kind, ago_h, **payload):
+        import datetime as dt
+        t = dt.datetime.fromtimestamp(self.NOW - ago_h * 3600, dt.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+        return {'type': kind, 'created_at': t, 'repo': {'name': 'you/garage'}, 'payload': payload}
+
+    def test_the_week_on_github(self):
+        events = [self.ev('PushEvent', 1, size=3, distinct_size=2), self.ev('PushEvent', 30, size=4),
+                  self.ev('PushEvent', 24 * 9, size=50),                         # older than a week: gone
+                  self.ev('CreateEvent', 5, ref_type='branch'), self.ev('CreateEvent', 5, ref_type='tag'),
+                  self.ev('PullRequestEvent', 2, action='closed', pull_request={'merged': True}),
+                  self.ev('PullRequestEvent', 2, action='closed', pull_request={'merged': False}),
+                  self.ev('ReleaseEvent', 3, action='published'), self.ev('WatchEvent', 1)]
+        a = pulse.github_activity(events, 'you', now=self.NOW)
+        self.assertEqual((a['pushes'], a['commits'], a['branches'], a['merged'], a['releases']), (2, 6, 1, 1, 1))
+        self.assertEqual(a['last_repo'], 'garage')
+        self.assertEqual(a['repos'], ['you/garage'])
+
+    def test_a_push_without_commit_details_still_counts_one(self):
+        a = pulse.github_activity([self.ev('PushEvent', 1)], 'you', now=self.NOW)
+        self.assertEqual((a['pushes'], a['commits']), (1, 1))
+
+    def test_linked_fuel_never_counts_a_commit_twice(self):
+        gh = {'login': 'you', 'pushes': 4, 'commits': 10, 'branches': 1, 'merged': 2, 'releases': 1, 'today': 3}
+        f = pulse.fuel_level([{'week': 7, 'pushed': 7, 'branches': 2, 'today': 1}], 100, gh)
+        self.assertEqual(f['source'], 'github')
+        self.assertEqual(f['commits'], 10)                      # the larger of local and GitHub
+        self.assertEqual(f['branches'], 2)
+        self.assertEqual(f['points'], 10 + 2 * 4 + 3 * 2 + 5 * 2 + 10 * 1)
+        self.assertEqual(pulse.fuel_level([{'week': 7}], 100)['source'], 'git')
+
+    def test_the_fuel_panel_opens_the_github_profile(self):
+        hub = pulse.Hub()
+        hub.gh_activity = {'login': 'TouchWorkStation'}
+        with mock.patch.object(pulse.shutil, 'which', return_value='/usr/bin/xdg-open'), \
+                mock.patch.object(pulse.subprocess, 'Popen') as po:
+            self.assertTrue(hub.click('garage-fuel'))
+        self.assertEqual(po.call_args[0][0], ['xdg-open', 'https://github.com/TouchWorkStation'])
+        hub.gh_activity = {'login': 'bad; rm -rf ~'}
+        with mock.patch.object(pulse.shutil, 'which', return_value='/usr/bin/xdg-open'), \
+                mock.patch.object(pulse.subprocess, 'Popen') as po:
+            self.assertFalse(hub.click('garage-fuel'))
+        po.assert_not_called()
+
+
 class GarageConfTests(unittest.TestCase):
     def test_defaults_and_overrides(self):
         c = pulse.garage_conf({'cpu': 70, 'colors': 'theme', 'motion': 'reduced', 'plate': '~/car.jpg', 'dash': False})

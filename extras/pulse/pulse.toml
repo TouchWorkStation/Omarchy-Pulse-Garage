@@ -75,7 +75,10 @@ max = 8
 plate = ""                       # the picture of your car (jpg/png/webp, stays on your PC); a .json beside it says
                                  # where its headlights, floor and window are
 colors = "garage"                # crimson and silver; "theme" keeps your Omarchy theme ([colors] preset wins anyway)
-fuel_goal = 60                   # a full tank, in points a week: 1 a commit, +1 when it is pushed, 3 a branch you worked on
+github = ""                      # the fuel follows your GitHub too: "" = the account of `gh auth login`, "you" = public
+                                 # events of that user only, "off" = only the repositories on this PC
+fuel_goal = 60                   # a full tank, in points a week (git: 1 a commit, +1 pushed, 3 a branch; with GitHub:
+                                 # 1 a commit, 2 a push, 3 a branch, 5 a merged pull request, 10 a release)
 cpu = 85                         # % for the dashboard lights (they go off again 5% below)
 gpu = 90
 ram = 85

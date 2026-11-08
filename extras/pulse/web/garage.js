@@ -211,15 +211,22 @@
     left.unshift(pa);
     // fuel: the work you ship
     var fl = f ? f.level : 0, msg = !f ? "reading your repos" : fl >= 0.75 ? "full tank · keep shipping" : fl >= 0.35 ? "cruising" : fl >= 0.15 ? "running low · push something" : "on fumes · commit to refuel";
-    var pf = panel("g-fuel", "fuel · last 7 days", "");
+    var linked = f && f.source === "github";
+    var pf = panel("g-fuel", "fuel · " + (linked ? "github · 7 days" : "last 7 days"), "");
+    pf.classList.toggle("clickable", !!linked);
+    pf.dataset.gh = linked && !share ? f.login : "";
     pf.classList.toggle("warn", !!f && fl < 0.35 && fl >= 0.15); pf.classList.toggle("crit", !!f && fl < 0.15);
     var bf = bodyOf(pf);
     if (!bf._built) { bf.innerHTML = '<div class="g-fuel"><canvas width="220" height="124"></canvas><div class="g-fi"></div></div><div class="meters g-fm"></div>'; bf._built = true; }
     setH(bf.querySelector(".g-fi"), '<div class="big"><span>' + (f ? Math.round(fl * 100) : "--") + "</span><small>%</small></div><div class='msg'>" + esc(msg) + "</div>" +
       (f ? "<div class='pts'>" + f.points + " / " + f.goal + " pts</div>" : ""));
     fuelGauge(bf.querySelector("canvas"), fl, !!f);
-    setH(bf.querySelector(".g-fm"), f ? [["commits", f.commits], ["pushed", f.pushed], ["branches", f.branches], ["today", f.today]].map(function (r) {
-      return '<div class="meter"><span class="k">' + r[0] + '</span><div class="seg"><i style="width:' + Math.min(100, r[1] / Math.max(1, f.goal) * 100).toFixed(0) + '%"></i></div><span class="v">' + r[1] + "</span></div>";
+    // each row: what it is, how much of a full tank it put in, the count
+    var fr = !f ? [] : linked ? [["commits", f.commits, 1], ["pushes", f.pushes, 2], ["branches", f.branches, 3], ["merged PR", f.merged, 5], ["releases", f.shipped, 10]]
+      : [["commits", f.commits, 1], ["pushed", f.pushed, 1], ["branches", f.branches, 3], ["today", f.today, 0]];
+    setH(bf.querySelector(".g-fm"), f ? fr.map(function (r) {
+      var w = r[2] ? Math.min(100, r[1] * r[2] / Math.max(1, f.goal) * 100) : Math.min(100, r[1] / Math.max(1, f.goal) * 100);
+      return '<div class="meter"><span class="k">' + r[0] + '</span><div class="seg"><i style="width:' + w.toFixed(0) + '%"></i></div><span class="v">' + r[1] + "</span></div>";
     }).join("") + '<div class="g-tot">' + thousands(f.allCommits) + " commits · " + f.releases + " releases · " + f.repos + " active projects</div>" : "");
     // builds: the CI of your repositories
     var withCi = repos.filter(function (r) { return r.ci; });
@@ -243,6 +250,8 @@
       document.body.appendChild(root);
       document.addEventListener("click", function (e) {
         if (!document.body.classList.contains("garage")) return;
+        var fp = e.target.closest && e.target.closest(".panel.clickable[data-gh]");
+        if (fp && fp.dataset.gh) { fetch("/api/click/garage-fuel?token=" + encodeURIComponent(TOKEN), { method: "POST" }); return; }
         if (e.target.closest && e.target.closest("[data-agent],[data-lamp]")) onClick(e); else if (card && e.target !== card) hideCard();
       });
     }
