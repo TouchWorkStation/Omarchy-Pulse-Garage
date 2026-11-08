@@ -3447,9 +3447,11 @@ def garage_conf(c: dict) -> dict:
 
 
 def garage_plate(conf: dict) -> Path | None:
-    """The picture behind the garage: [garage] plate (your own render or photo), else the one that ships with Pulse.
+    """The picture behind the garage: [garage] plate, else garage.jpg/png/webp in ~/.config/omarchy-pulse, else the one
+    that ships with Pulse.
     Only images: the path comes from your config, but a page must never read any other file through it."""
-    for f in (str((conf or {}).get("plate") or ""), str(WEB / "garage" / "plate.jpg")):
+    mine = [str(CONF_DIR / ("garage" + ext)) for ext in (".jpg", ".png", ".webp")]   # dropped in the config folder
+    for f in [str((conf or {}).get("plate") or "")] + mine + [str(WEB / "garage" / "plate.jpg")]:
         if not f:
             continue
         p = Path(os.path.expanduser(f))

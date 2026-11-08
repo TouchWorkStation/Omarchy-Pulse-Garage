@@ -151,6 +151,13 @@ class PlateTests(unittest.TestCase):
                 pic.write_bytes(b'\xff\xd8')
                 self.assertEqual(pulse.garage_plate({'plate': str(pic)}), pic)
 
+    def test_a_picture_in_the_config_folder_is_found_without_config(self):
+        with tempfile.TemporaryDirectory() as d:
+            pic = Path(d) / 'garage.png'
+            pic.write_bytes(b'x')
+            with mock.patch.object(pulse, 'CONF_DIR', Path(d)), mock.patch.object(pulse, 'WEB', Path(d) / 'web'):
+                self.assertEqual(pulse.garage_plate({}), pic)
+
     def test_anchors_sit_beside_the_plate(self):
         with tempfile.TemporaryDirectory() as d:
             pic = Path(d) / 'car.png'

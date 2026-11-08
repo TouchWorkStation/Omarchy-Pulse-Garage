@@ -214,8 +214,9 @@ lights it with your data. The garage adds:
 - the underglow breathes with your GPU and moves with your music, the real rain and snow run down the window, an
   alert flares the neon sign, the colours are crimson and silver (`colors = "theme"` keeps your Omarchy theme).
 
-The picture stays on your PC: `plate = "~/Pictures/garage.jpg"`, with a `garage.json` beside it that says where the
-headlights, floor and window are ([docs/GARAGE.md](docs/GARAGE.md)). Without one, the bay is dark and empty.
+The picture stays on your PC: save it as `~/.config/omarchy-pulse/garage.jpg` (or `.png`, `.webp`), with a
+`garage.json` beside it that says where the headlights, floor and window are ([docs/GARAGE.md](docs/GARAGE.md)), or
+point `plate` in `[garage]` anywhere else. Without one, the bay is dark and empty.
 
 The wallpaper switches within about 3 seconds (`omarchy-pulse reload` to do it now).
 
